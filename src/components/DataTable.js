@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, TextField } from '@mui/material';
 import EditExplanationDialog from './EditExplanationDialog';
 import ViewExplanationDialog from './ViewExplanationDialog';
@@ -27,6 +27,10 @@ function DataTable({ scores, onUpdate }) {
   const [currentExplanation, setCurrentExplanation] = useState('');
   const [modifiedRows, setModifiedRows] = useState({});
 
+  useEffect(() => {
+    console.log("Scores updated:", scores);
+  }, [scores]);
+
   const handleOpenDialog = (row) => {
     setEditingRow(row);
     setNewGrade(row.grade);
@@ -35,6 +39,16 @@ function DataTable({ scores, onUpdate }) {
   const handleCloseDialog = () => {
     setEditingRow(null);
     setNewGrade('');
+  };
+
+  const handleOpenEditDialog = (row) => {
+    setEditingRow(row);
+    setCurrentExplanation(row.explanation || '');
+    setEditExplanationDialogOpen(true);
+  };
+
+  const handleExplanationChange = (e) => {
+    setCurrentExplanation(e.target.value);
   };
 
   const handleSave = () => {
@@ -50,24 +64,20 @@ function DataTable({ scores, onUpdate }) {
         ...modifiedRows,
         [`${editingRow.name}-${editingRow.subject}`]: true
       });
-      handleCloseDialog();
-      setCurrentExplanation(editingRow.explanation || '');
-      setEditExplanationDialogOpen(true);
+      handleCloseDialog(); // 关闭保存框
+      handleOpenEditDialog(updatedScores.find(s => s.name === editingRow.name && s.subject === editingRow.subject));
     }
   };
 
   const handleOpenViewExplanationDialog = (row) => {
+    console.log("Opening view dialog for:", row);
+    console.log("Explanation:", row.explanation);
     setCurrentExplanation(row.explanation || '');
     setViewExplanationDialogOpen(true);
   };
 
   const handleCloseViewExplanationDialog = () => {
     setViewExplanationDialogOpen(false);
-  };
-
-  const handleCloseEditExplanationDialog = () => {
-    setEditExplanationDialogOpen(false);
-    setCurrentExplanation('');
   };
 
   const handleSaveExplanation = () => {
@@ -78,22 +88,12 @@ function DataTable({ scores, onUpdate }) {
         }
         return score;
       });
-      onUpdate(updatedScores); // 更新父组件中的 scores
-  
-      // 更新 currentExplanation
-      const updatedScore = updatedScores.find(
-        (score) => score.name === editingRow.name && score.subject === editingRow.subject
-      );
-      if (updatedScore) {
-        setCurrentExplanation(updatedScore.explanation);
-      }
+      onUpdate(updatedScores);
+      console.log("Saved explanation:", currentExplanation);
+      setEditExplanationDialogOpen(false);
+      // 确保保存后关闭保存框
+      handleCloseDialog(); 
     }
-  };
-
-
-  const handleSaveExplanationAndClose = () => {
-    handleSaveExplanation();
-    handleCloseEditExplanationDialog(); // 关闭对话框
   };
 
   return (
@@ -107,9 +107,8 @@ function DataTable({ scores, onUpdate }) {
             <TableCell>Grade</TableCell>
             <TableCell>Update</TableCell>
           </TableRow>
-
         </TableHead>
-          <TableBody>
+        <TableBody>
           {scores.map((score, index) => {
             const { grade } = getGradeAndGPA(score.score);
             const isModified = modifiedRows[`${score.name}-${score.subject}`];
@@ -153,10 +152,10 @@ function DataTable({ scores, onUpdate }) {
 
       <EditExplanationDialog
         open={editExplanationDialogOpen}
-        onClose={handleCloseEditExplanationDialog}
+        onClose={() => setEditExplanationDialogOpen(false)}
         explanation={currentExplanation}
-        onChange={(e) => setCurrentExplanation(e.target.value)} 
-        onSave={handleSaveExplanationAndClose} 
+        onChange={handleExplanationChange}
+        onSave={handleSaveExplanation}
       />
 
       <ViewExplanationDialog
