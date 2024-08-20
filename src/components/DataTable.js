@@ -1,169 +1,154 @@
-import React, { useState, useEffect } from 'react';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, TextField } from '@mui/material';
-import EditExplanationDialog from './EditExplanationDialog';
-import ViewExplanationDialog from './ViewExplanationDialog';
+import React, { useState } from 'react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TablePagination,
+  TableSortLabel,
+  Paper,
+  TextField,
+  Box,
+} from '@mui/material';
+import FileUpload from './FileUpload';
 
-const getGradeAndGPA = (score) => {
-  if (score >= 95 && score <= 100) return { grade: 'A+', gpa: 9 };
-  if (score >= 90 && score <= 94) return { grade: 'A+', gpa: 9 };
-  if (score >= 85 && score <= 89) return { grade: 'A', gpa: 8 };
-  if (score >= 80 && score <= 84) return { grade: 'A-', gpa: 7 };
-  if (score >= 75 && score <= 79) return { grade: 'B+', gpa: 6 };
-  if (score >= 70 && score <= 74) return { grade: 'B', gpa: 5 };
-  if (score >= 65 && score <= 69) return { grade: 'B-', gpa: 4 };
-  if (score >= 60 && score <= 64) return { grade: 'C+', gpa: 3 };
-  if (score >= 55 && score <= 59) return { grade: 'C', gpa: 2 };
-  if (score >= 50 && score <= 54) return { grade: 'C-', gpa: 1 };
-  if (score >= 45 && score <= 49) return { grade: 'D', gpa: 0 };
-  if (score >= 40 && score <= 44) return { grade: 'D', gpa: 0 };
-  return { grade: 'E', gpa: 0 }; // 0-39
-};
+function DataTable() {
+  const [data, setData] = useState([]);
+  const [columns, setColumns] = useState([]);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [orderBy, setOrderBy] = useState('');
+  const [order, setOrder] = useState('asc');
+  const [searchTerm, setSearchTerm] = useState('');
 
-function DataTable({ scores, onUpdate }) {
-  const [editingRow, setEditingRow] = useState(null);
-  const [newGrade, setNewGrade] = useState('');
-  const [editExplanationDialogOpen, setEditExplanationDialogOpen] = useState(false);
-  const [viewExplanationDialogOpen, setViewExplanationDialogOpen] = useState(false);
-  const [currentExplanation, setCurrentExplanation] = useState('');
-  const [modifiedRows, setModifiedRows] = useState({});
-
-  useEffect(() => {
-    console.log("Scores updated:", scores);
-  }, [scores]);
-
-  const handleOpenDialog = (row) => {
-    setEditingRow(row);
-    setNewGrade(row.grade);
+  const handleDataReceived = (receivedData) => {
+    setData(receivedData.data);
+    setColumns(receivedData.columns);
+    setPage(0);  // 重置到第一页
   };
 
-  const handleCloseDialog = () => {
-    setEditingRow(null);
-    setNewGrade('');
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
   };
 
-  const handleOpenEditDialog = (row) => {
-    setEditingRow(row);
-    setCurrentExplanation(row.explanation || '');
-    setEditExplanationDialogOpen(true);
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
   };
 
-  const handleExplanationChange = (e) => {
-    setCurrentExplanation(e.target.value);
+  const handleRequestSort = (property) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
   };
 
-  const handleSave = () => {
-    if (editingRow) {
-      const updatedScores = scores.map(score => {
-        if (score.name === editingRow.name && score.subject === editingRow.subject) {
-          return { ...score, grade: newGrade };
-        }
-        return score;
-      });
-      onUpdate(updatedScores);
-      setModifiedRows({
-        ...modifiedRows,
-        [`${editingRow.name}-${editingRow.subject}`]: true
-      });
-      handleCloseDialog(); // 关闭保存框
-      handleOpenEditDialog(updatedScores.find(s => s.name === editingRow.name && s.subject === editingRow.subject));
+  const handleSearch = (event) => {
+    setSearchTerm(event.target.value);
+    setPage(0);
+  };
+
+  function stableSort(array, comparator) {
+    const stabilizedThis = array.map((el, index) => [el, index]);
+    stabilizedThis.sort((a, b) => {
+      const order = comparator(a[0], b[0]);
+      if (order !== 0) return order;
+      return a[1] - b[1];
+    });
+    return stabilizedThis.map((el) => el[0]);
+  }
+
+  function getComparator(order, orderBy) {
+    return order === 'desc'
+      ? (a, b) => descendingComparator(a, b, orderBy)
+      : (a, b) => -descendingComparator(a, b, orderBy);
+  }
+
+  function descendingComparator(a, b, orderBy) {
+    if (b[orderBy] < a[orderBy]) {
+      return -1;
     }
-  };
-
-  const handleOpenViewExplanationDialog = (row) => {
-    console.log("Opening view dialog for:", row);
-    console.log("Explanation:", row.explanation);
-    setCurrentExplanation(row.explanation || '');
-    setViewExplanationDialogOpen(true);
-  };
-
-  const handleCloseViewExplanationDialog = () => {
-    setViewExplanationDialogOpen(false);
-  };
-
-  const handleSaveExplanation = () => {
-    if (editingRow) {
-      const updatedScores = scores.map(score => {
-        if (score.name === editingRow.name && score.subject === editingRow.subject) {
-          return { ...score, explanation: currentExplanation };
-        }
-        return score;
-      });
-      onUpdate(updatedScores);
-      console.log("Saved explanation:", currentExplanation);
-      setEditExplanationDialogOpen(false);
-      // 确保保存后关闭保存框
-      handleCloseDialog(); 
+    if (b[orderBy] > a[orderBy]) {
+      return 1;
     }
-  };
+    return 0;
+  }
+
+  const filteredData = data.filter((row) =>
+    Object.values(row).some((value) =>
+      value.toString().toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  );
+
+  const sortedData = stableSort(filteredData, getComparator(order, orderBy));
+
+  const visibleRows = sortedData.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
+  );
 
   return (
-    <TableContainer component={Paper} style={{ marginTop: '20px' }}>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>Name</TableCell>
-            <TableCell>Courses</TableCell>
-            <TableCell>Score</TableCell>
-            <TableCell>Grade</TableCell>
-            <TableCell>Update</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {scores.map((score, index) => {
-            const { grade } = getGradeAndGPA(score.score);
-            const isModified = modifiedRows[`${score.name}-${score.subject}`];
-            
-            return (
-              <TableRow 
-                key={index}
-                style={{ backgroundColor: isModified ? '#FF0033' : 'inherit' }}
-              >
-                <TableCell>{score.name}</TableCell>
-                <TableCell>{score.subject}</TableCell>
-                <TableCell>{score.score}</TableCell>
-                <TableCell>
-                  <span 
-                    onClick={() => handleOpenViewExplanationDialog(score)}
-                    style={{ cursor: 'pointer', textDecoration: 'underline' }}
+    <Paper sx={{ width: '100%', mb: 2 }}>
+      <FileUpload onDataReceived={handleDataReceived} />
+      
+      <TextField
+        fullWidth
+        margin="normal"
+        label="Search"
+        variant="outlined"
+        value={searchTerm}
+        onChange={handleSearch}
+      />
+
+      <TableContainer>
+        <Table sx={{ minWidth: 750 }} aria-labelledby="tableTitle">
+          <TableHead>
+            <TableRow>
+              {columns.map((column) => (
+                <TableCell
+                  key={column}
+                  sortDirection={orderBy === column ? order : false}
+                >
+                  <TableSortLabel
+                    active={orderBy === column}
+                    direction={orderBy === column ? order : 'asc'}
+                    onClick={() => handleRequestSort(column)}
                   >
-                    {score.grade || grade}
-                  </span>
+                    {column}
+                  </TableSortLabel>
                 </TableCell>
-                <TableCell>
-                  {editingRow && editingRow.name === score.name && editingRow.subject === score.subject ? (
-                    <>
-                      <TextField
-                        value={newGrade}
-                        onChange={(e) => setNewGrade(e.target.value)}
-                        variant="outlined"
-                        size="small"
-                      />
-                      <Button variant="contained" onClick={handleSave}>Save</Button>
-                    </>
-                  ) : (
-                    <Button variant="contained" onClick={() => handleOpenDialog(score)}>Update grade</Button>
-                  )}
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {visibleRows.map((row, index) => (
+              <TableRow hover key={index}>
+                {columns.map((column) => (
+                  <TableCell key={column}>{row[column]}</TableCell>
+                ))}
+              </TableRow>
+            ))}
+            {visibleRows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={columns.length} align="center">
+                  No data available
                 </TableCell>
               </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-
-      <EditExplanationDialog
-        open={editExplanationDialogOpen}
-        onClose={() => setEditExplanationDialogOpen(false)}
-        explanation={currentExplanation}
-        onChange={handleExplanationChange}
-        onSave={handleSaveExplanation}
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+      <TablePagination
+        rowsPerPageOptions={[5, 10, 25]}
+        component="div"
+        count={filteredData.length}
+        rowsPerPage={rowsPerPage}
+        page={page}
+        onPageChange={handleChangePage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
       />
-
-      <ViewExplanationDialog
-        open={viewExplanationDialogOpen}
-        onClose={handleCloseViewExplanationDialog}
-        explanation={currentExplanation}
-      />
-    </TableContainer>
+    </Paper>
   );
 }
 

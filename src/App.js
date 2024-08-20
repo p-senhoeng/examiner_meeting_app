@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Container, CssBaseline, ThemeProvider, createTheme, Button } from '@mui/material';
-import ScoreUpload from './components/ScoreUpload';
 import DataVisualization from './components/DataVisualization';
 import DataTable from './components/DataTable';
 
@@ -9,10 +8,6 @@ const theme = createTheme();
 function App() {
   const [scores, setScores] = useState([]);
   const [showVisualization, setShowVisualization] = useState(false);
-
-  const handleScoreUpload = (uploadedScores) => {
-    setScores(uploadedScores);
-  };
 
   const handleVisualize = () => {
     setShowVisualization(true);
@@ -23,7 +18,12 @@ function App() {
   };
 
   const handleScoreUpdate = (updatedScores) => {
-    setScores(updatedScores);
+    // Ensure updatedScores is an array
+    if (Array.isArray(updatedScores)) {
+      setScores(updatedScores);
+    } else {
+      console.error("Updated scores are not an array:", updatedScores);
+    }
   };
 
   return (
@@ -33,22 +33,19 @@ function App() {
         {!showVisualization ? (
           <>
             <h1>Student Achievement Management Center</h1>
-            <ScoreUpload onUpload={handleScoreUpload} />
+            <DataTable 
+              scores={scores} 
+              onUpdate={handleScoreUpdate}
+            />
             {scores.length > 0 && (
-              <>
-                <DataTable 
-                  scores={scores} 
-                  onUpdate={handleScoreUpdate}
-                />
-                <Button 
-                  variant="contained" 
-                  color="primary" 
-                  onClick={handleVisualize} 
-                  style={{ marginTop: '20px' }}
-                >
-                  Data Visualization
-                </Button>
-              </>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                onClick={handleVisualize} 
+                style={{ marginTop: '20px' }}
+              >
+                Data Visualization
+              </Button>
             )}
           </>
         ) : (
