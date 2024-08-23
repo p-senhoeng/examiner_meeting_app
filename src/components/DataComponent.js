@@ -7,7 +7,7 @@ function DataComponent() {
 
   useEffect(() => {
     // 获取数据
-    fetch('http://127.0.0.1:5000/data')
+    fetch('http://127.0.0.1:5001/data')
       .then(response => {
         if (!response.ok) {
           throw new Error('网络请求失败');
@@ -28,7 +28,7 @@ function DataComponent() {
 
     // 更新数据
     try {
-      const response = await fetch(`http://127.0.0.1:5000/data/${editingId}`, {
+      const response = await fetch(`http://127.0.0.1:5001/data/${editingId}`, {
         method: 'PUT',
         headers: {
         },

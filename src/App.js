@@ -1,66 +1,64 @@
 import React, { useState } from 'react';
-import { Container, CssBaseline, ThemeProvider, createTheme, Button } from '@mui/material';
+import { Container, CssBaseline, ThemeProvider, createTheme, Button, Box } from '@mui/material';
 import DataVisualization from './components/DataVisualization';
-import DataTable from './components/DataTable';
+import DataProcessingComponent from './components/DataProcessingComponent';
 
 const theme = createTheme();
 
 function App() {
-  const [scores, setScores] = useState([]);
+  const [data, setData] = useState([]);
   const [showVisualization, setShowVisualization] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  const handleDataReceived = (receivedData) => {
+    setData(receivedData.data);
+    setSelectedFile(receivedData.filename);
+  };
 
   const handleVisualize = () => {
     setShowVisualization(true);
   };
 
-  const handleBackToUpload = () => {
+  const handleBackToProcessing = () => {
     setShowVisualization(false);
-  };
-
-  const handleScoreUpdate = (updatedScores) => {
-    // Ensure updatedScores is an array
-    if (Array.isArray(updatedScores)) {
-      setScores(updatedScores);
-    } else {
-      console.error("Updated scores are not an array:", updatedScores);
-    }
   };
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Container maxWidth="lg">
-        {!showVisualization ? (
-          <>
-            <h1>Student Achievement Management Center</h1>
-            <DataTable 
-              scores={scores} 
-              onUpdate={handleScoreUpdate}
-            />
-            {scores.length > 0 && (
+        <Box my={4}>
+          <h1>Student Achievement Management Center</h1>
+          {!showVisualization ? (
+            <>
+              <DataProcessingComponent 
+                onDataReceived={handleDataReceived}
+              />
+              {data.length > 0 && (
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  onClick={handleVisualize} 
+                  style={{ marginTop: '20px' }}
+                >
+                  Data Visualization
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <DataVisualization data={data} />
               <Button 
                 variant="contained" 
                 color="primary" 
-                onClick={handleVisualize} 
+                onClick={handleBackToProcessing} 
                 style={{ marginTop: '20px' }}
               >
-                Data Visualization
+                Return to Data Processing
               </Button>
-            )}
-          </>
-        ) : (
-          <>
-            <DataVisualization scores={scores} />
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={handleBackToUpload} 
-              style={{ marginTop: '20px' }}
-            >
-              Return
-            </Button>
-          </>
-        )}
+            </>
+          )}
+        </Box>
       </Container>
     </ThemeProvider>
   );
