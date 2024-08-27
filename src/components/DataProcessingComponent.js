@@ -272,33 +272,51 @@ function DataProcessingComponent() {
         throw new Error("No student selected for editing. Please try again.");
       }
   
-      const studentId = editingStudent.id_number || editingStudent.id || '';
+      // 确保我们使用正确的 id_number
+      const studentId = editingStudent.id_number || editingStudent['id number'] || editingStudent.id;
+      if (!studentId) {
+        throw new Error("Invalid student ID. Please try again.");
+      }
   
-      console.log('Sending data to server:', {
+      // 记录所有可能的 ID 字段
+      console.log('Student object:', editingStudent);
+      console.log('Possible ID fields:', {
+        id_number: editingStudent.id_number,
+        'id number': editingStudent['id number'],
+        id: editingStudent.id
+      });
+  
+      const dataToSend = {
         filename: selectedFile,
         id_number: studentId,
         grade_level: gradeLevel,
         comments: comments,
-      });
+      };
   
-      const response = await api.post('/main/update_student', {
-        filename: selectedFile,
-        id_number: studentId,
-        grade_level: String(gradeLevel),
-        comments: String(comments),
-      });
+      console.log('Sending data to server:', dataToSend);
+  
+      const response = await api.post('/main/update_student', dataToSend);
   
       console.log('Server response:', response.data);
   
       if (response.data && response.data.message) {
-        setEditDialogOpen(false);
-        setSnackbar({ open: true, message: response.data.message, severity: 'success' });
-        setEditingStudent(null);
-        setGradeLevel('');
-        setComments('');
+        if (response.data.message.includes('successfully')) {
+          setEditDialogOpen(false);
+          setSnackbar({ open: true, message: response.data.message, severity: 'success' });
+          setEditingStudent(null);
+          setGradeLevel('');
+          setComments('');
   
-        // 保存成功后，重新获取更新后的数据
-        await fetchData(selectedFile);
+          // 更新本地数据
+          if (response.data.data && response.data.columns) {
+            setData(response.data.data);
+            setColumns(response.data.columns);
+          } else {
+            console.warn('Server response does not contain updated data or columns');
+          }
+        } else {
+          throw new Error(response.data.message);
+        }
       } else {
         throw new Error('Unexpected response format from server');
       }
@@ -309,13 +327,14 @@ function DataProcessingComponent() {
         console.error('Error response status:', err.response.status);
         console.error('Error response data:', err.response.data);
       }
-      setSnackbar({ 
-        open: true, 
-        message: `Failed to save grade: ${err.message || 'Unknown error'}`, 
-        severity: 'error' 
+      setSnackbar({
+        open: true,
+        message: `Failed to save grade: ${err.message || 'Unknown error'}`,
+        severity: 'error'
       });
     }
   };
+  
 
   function stableSort(array, comparator) {
     const stabilizedThis = array.map((el, index) => [el, index]);
