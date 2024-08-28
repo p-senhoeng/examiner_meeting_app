@@ -2,7 +2,7 @@ from flask import Flask
 import os
 from config import Config
 from models import db  # 引入数据库模型
-from flask_cors import CORS
+from flask_cors import CORS   # 引入 CORS
 
 # 初始化 Flask 应用
 app = Flask(__name__)
