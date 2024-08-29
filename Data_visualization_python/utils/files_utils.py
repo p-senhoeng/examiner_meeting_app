@@ -13,15 +13,33 @@ class FilesHandler:
         if re.match(r'^\d', filename):
             return False, "File names cannot start with a number."
 
-        # 不允许文件名包含连字符、点、空格
-        if re.search(r'[-. ]', filename):  # 禁止连字符、点和空格
-            return False, "File names cannot contain hyphens, dots, or spaces."
+        # 不允许文件名包含点和空格
+        if re.search(r'[. ]', filename):  # 禁止点和空格
+            return False, "File names cannot contain dots or spaces."
 
         # 检查文件名长度
-        if len(filename) > 64:  # 假设数据库表名长度限制为 64 个字符
+        if len(filename) > 64:  # 数据库表名长度限制为 64 个字符
             return False, "File names cannot exceed 64 characters."
 
         return True, None
+
+    @staticmethod
+    def clean_table_name(filename):
+        """
+        将文件名中的连字符替换为下划线，以避免 MySQL 报错
+        :param filename: 原始文件名
+        :return: 替换后的文件名
+        """
+        return filename.replace('-', '_')
+
+    @staticmethod
+    def restore_table_name(filename):
+        """
+        将文件名中的下划线替换回连字符，以便前端显示
+        :param filename: 替换后的文件名
+        :return: 原始文件名
+        """
+        return filename.replace('_', '-')
 
     @staticmethod
     def clean_column_names(columns):
