@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy import func
 from models import db
 from sqlalchemy.sql import text
-
+from utils.files_utils import FilesHandler
 # 创建一个蓝图用于charts相关的路由
 charts_bp = Blueprint('charts', __name__)
 
@@ -16,15 +16,18 @@ def bar_chart():
     data = request.json  # 从请求中获取 JSON 格式的数据
 
     # 从请求数据中获取表名
-    table_name = data.get('table_name')
+    filename = data.get('filename')
 
     # 如果没有提供表名，返回错误信息
-    if not table_name:
+    if not filename:
         return jsonify({"error": "Table name is required"}), 400
 
     try:
+        # 使用 clean_table_name 函数清理表名
+        clean_table_name = FilesHandler.clean_table_name(filename)
+
         # 使用 text 构建一个 SQL 查询，统计每个 grade_level 的数量
-        query = text(f"SELECT grade_level, COUNT(*) as count FROM `{table_name}` GROUP BY grade_level")
+        query = text(f"SELECT grade_level, COUNT(*) as count FROM `{clean_table_name}` GROUP BY grade_level")
 
         # 连接到数据库并执行查询
         with db.engine.connect() as connection:
@@ -46,9 +49,13 @@ def bar_chart():
                 count = row[count_idx]  # 使用索引获取 count 的值
                 grade_counts[grade_level] = count  # 将结果添加到字典中
 
+        # 将表名还原为原始格式
+        restored_table_name = FilesHandler.restore_table_name(clean_table_name)
+
         # 返回成功响应，并将结果字典发送给前端
         return jsonify({
             "message": "Data retrieved successfully",
+            "filename": restored_table_name,  # 返回还原后的表名
             "data": grade_counts
         }), 200
 
