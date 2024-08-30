@@ -19,7 +19,9 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # 注册 Blueprints
 from blueprints.main.main import main_bp
+from blueprints.charts.charts import charts_bp
 app.register_blueprint(main_bp, url_prefix='/main')
+app.register_blueprint(charts_bp, url_prefix='/charts')
 
 if __name__ == '__main__':
     with app.app_context():

@@ -48,8 +48,8 @@ def upload_file():
         if not valid_filename:
             return jsonify({"error": error_message}), 400
 
-        # 使用文件名（去掉扩展名）作为数据库表名
-        table_name = check_filename
+        # 将连字符替换为下划线，使用文件名（去掉扩展名）作为数据库表名
+        table_name = FilesHandler.clean_table_name(check_filename)
 
         try:
             # 读取上传的文件内容，并转换为 Pandas DataFrame
@@ -96,10 +96,13 @@ def upload_file():
             data = df_restored.to_dict(orient='records')
             ordered_data = order_data_by_columns(restored_columns, data)
 
+            # 修改：在返回给前端前还原表名
+            restored_table_name = FilesHandler.restore_table_name(table_name)
+
             # 返回成功的 JSON 响应，包含表名、列名、插入的数据和警告信息
             return jsonify({
                 "message": "File uploaded and data stored successfully",
-                "table_name": table_name,
+                "table_name": restored_table_name,  # 使用还原后的表名
                 "columns": restored_columns,  # 添加列名到响应中
                 "data": ordered_data,
             }), 200
@@ -112,6 +115,7 @@ def upload_file():
                 {"error": "An error occurred during the file upload process", "details": detailed_error}), 500
 
     return jsonify({"error": "File type not allowed"}), 400
+
 
 
 @main_bp.route('/update_student', methods=['POST'])
@@ -130,7 +134,9 @@ def update_student():
     if not filename or not id_number or grade_level is None or comments is None:
         return jsonify({"error": "Missing required parameters"}), 400
 
-    table_name = os.path.splitext(filename)[0]  # 使用文件名（去掉扩展名）作为数据库表名
+    # 使用文件名（去掉扩展名）作为数据库表名，并清理表名
+    check_filename = os.path.splitext(filename)[0]
+    table_name = FilesHandler.clean_table_name(check_filename)
 
     # 使用 SQLAlchemy 的 inspect 工具检查表是否存在
     inspector = inspect(db.engine)
@@ -155,23 +161,32 @@ def update_student():
     data = df_restored.to_dict(orient='records')
     ordered_data = order_data_by_columns(restored_columns, data)
 
+    # 在返回给前端时，将表名中的下划线还原为连字符
+    restored_table_name = FilesHandler.restore_table_name(table_name)
+
     # 返回成功的 JSON 响应，包含表名、列名、插入的数据和警告信息
     return jsonify({
         "message": "Student record updated successfully",
-        "table_name": table_name,
+        "table_name": restored_table_name,  # 使用还原后的文件名
         "columns": restored_columns,  # 添加列名到响应中
         "data": ordered_data,
     }), 200
 
 
+
 @main_bp.route('/list_csv', methods=['GET'])
 def list_csv():
     """
-    返回数据库中所有表的名称
+    返回数据库中所有表的名称，并将下划线还原为连字符
     """
     inspector = inspect(db.engine)  # 使用 SQLAlchemy 的 inspect 工具来检查数据库
     tables = inspector.get_table_names()  # 获取所有表的名称
-    return jsonify({"CSV files": tables}), 200  # 将表名列表返回给前端
+
+    # 新增：将表名中的下划线还原为连字符
+    restored_tables = [FilesHandler.restore_table_name(table) for table in tables]
+
+    return jsonify({"CSV files": restored_tables}), 200  # 将表名列表返回给前端
+
 
 
 @main_bp.route('/export_csv', methods=['POST'])
@@ -186,7 +201,10 @@ def export_csv():
         return jsonify({"error": "No filename provided"}), 400
 
     filename = data['filename']
-    table_name = os.path.splitext(filename)[0]  # 使用文件名（去掉扩展名）作为数据库表名
+    check_filename = os.path.splitext(filename)[0]
+
+    # 修改1: 使用清理后的表名作为数据库表名
+    table_name = FilesHandler.clean_table_name(check_filename)
 
     # 从数据库中提取数据
     query = text(f"SELECT * FROM `{table_name}`")
@@ -201,11 +219,13 @@ def export_csv():
     restored_columns = FilesHandler.restore_column_names(df.columns.tolist())
     df.columns = restored_columns  # 更新 DataFrame 的列名为恢复空格后的列名
 
-    # 修改1: 强制将导出的文件扩展名设置为 '.csv'
-    output_filename = os.path.join(current_app.config['UPLOAD_FOLDER'], table_name + '.csv')
+    # 修改2: 强制将导出的文件扩展名设置为 '.csv'，并使用还原后的表名作为文件名
+    restored_table_name = FilesHandler.restore_table_name(table_name)
+    output_filename = os.path.join(current_app.config['UPLOAD_FOLDER'], restored_table_name + '.csv')
 
     # 将数据写入到新的 CSV 文件
     df.to_csv(output_filename, index=False, encoding='utf-8')
 
     # 提供下载该 CSV 文件
-    return send_file(output_filename, as_attachment=True, download_name=table_name + '.csv')
+    return send_file(output_filename, as_attachment=True, download_name=restored_table_name + '.csv')
+
