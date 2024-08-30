@@ -3,6 +3,7 @@ from sqlalchemy import func
 from models import db
 from sqlalchemy.sql import text
 from utils.files_utils import FilesHandler
+from utils.db_helpers import get_original_filename
 # 创建一个蓝图用于charts相关的路由
 charts_bp = Blueprint('charts', __name__)
 
@@ -22,12 +23,18 @@ def bar_chart():
     if not filename:
         return jsonify({"error": "Table name is required"}), 400
 
+    check_filename = filename.lower()
+
     try:
-        # 使用 clean_table_name 函数清理表名
-        clean_table_name = FilesHandler.clean_table_name(filename)
+
+        table_name = FilesHandler.clean_table_name(check_filename)
+
+        original_filename = get_original_filename(table_name, db.engine)
+        if not original_filename:
+            return jsonify({"error": "Table not found in mapping"}), 404
 
         # 使用 text 构建一个 SQL 查询，统计每个 grade_level 的数量
-        query = text(f"SELECT grade_level, COUNT(*) as count FROM `{clean_table_name}` GROUP BY grade_level")
+        query = text(f"SELECT grade_level, COUNT(*) as count FROM `{table_name}` GROUP BY grade_level")
 
         # 连接到数据库并执行查询
         with db.engine.connect() as connection:
@@ -49,13 +56,12 @@ def bar_chart():
                 count = row[count_idx]  # 使用索引获取 count 的值
                 grade_counts[grade_level] = count  # 将结果添加到字典中
 
-        # 将表名还原为原始格式
-        restored_table_name = FilesHandler.restore_table_name(clean_table_name)
+
 
         # 返回成功响应，并将结果字典发送给前端
         return jsonify({
             "message": "Data retrieved successfully",
-            "filename": restored_table_name,  # 返回还原后的表名
+            "filename": original_filename,  # 返回还原后的表名
             "data": grade_counts
         }), 200
 
