@@ -27,96 +27,109 @@ def allowed_file(filename):
 def upload_file():
     """
     处理文件上传的主函数
-    接受文件，创建或替换相应的数据库表，并插入数据
+    接受多个文件，创建或替换相应的数据库表，并插入数据
     """
     if 'student_performance_data' not in request.files:
         return jsonify({"error": "No file part"}), 400
 
-    file = request.files['student_performance_data']
+    files = request.files.getlist('student_performance_data')
 
-    if file.filename == '':
+    if len(files) == 0:
         return jsonify({"error": "No selected file"}), 400
 
-    if file and allowed_file(file.filename):
-        original_filename  = os.path.splitext(file.filename)[0]
-        check_filename = os.path.splitext(original_filename)[0].lower()
+    responses = []
 
-        # 检查文件名是否合法
-        valid_filename, error_message = FilesHandler.validate_filename(check_filename)
-        if not valid_filename:
-            return jsonify({"error": error_message}), 400
+    for file in files:
+        if file.filename == '':
+            responses.append({"filename": "", "error": "No selected file"})
+            continue
 
-        # 将连字符替换为下划线，使用文件名（去掉扩展名）作为数据库表名
-        table_name = FilesHandler.clean_table_name(check_filename)
+        if file and allowed_file(file.filename):
+            original_filename = os.path.splitext(file.filename)[0]
+            check_filename = os.path.splitext(original_filename)[0].lower()
 
-        try:
-            # 读取上传的文件内容，并转换为 Pandas DataFrame
-            if (file.filename).endswith('.csv'):
-                df = pd.read_csv(file)
-            elif (file.filename).endswith(('.xlsx', '.xls')):
-                df = pd.read_excel(file)
+            # 检查文件名是否合法
+            valid_filename, error_message = FilesHandler.validate_filename(check_filename)
+            if not valid_filename:
+                responses.append({"filename": file.filename, "error": error_message})
+                continue
 
-            # 确保列名是字符串
-            df.columns = [str(col) for col in df.columns]
+            # 将连字符替换为下划线，使用文件名（去掉扩展名）作为数据库表名
+            table_name = FilesHandler.clean_table_name(check_filename)
 
-            columns = df.columns.tolist()  # 获取文件的表头（列名）
+            try:
+                # 读取上传的文件内容，并转换为 Pandas DataFrame
+                if file.filename.endswith('.csv'):
+                    df = pd.read_csv(file)
+                elif file.filename.endswith(('.xlsx', '.xls')):
+                    df = pd.read_excel(file)
 
-            # 清理列名，确保没有空格，大写转小写
-            cleaned_columns, clean_messages = FilesHandler.clean_column_names(columns)
-            df.columns = cleaned_columns  # 更新 DataFrame 的列名
+                # 确保列名是字符串
+                df.columns = [str(col) for col in df.columns]
 
-            # 使用 SQLAlchemy 的 inspect 工具检查表是否存在
-            inspector = inspect(db.engine)
-            if inspector.has_table(table_name):
-                # 如果表存在，手动删除表
-                metadata = MetaData()
-                table = Table(table_name, metadata, autoload_with=db.engine)
-                table.drop(db.engine)
+                columns = df.columns.tolist()  # 获取文件的表头（列名）
 
-            # 使用自定义工具函数根据文件表头动态创建数据库表
-            create_table_from_files(table_name, cleaned_columns, db.engine)
+                # 清理列名，确保没有空格，大写转小写
+                cleaned_columns, clean_messages = FilesHandler.clean_column_names(columns)
+                df.columns = cleaned_columns  # 更新 DataFrame 的列名
 
-            # 将数据插入到新创建的数据库表中
-            df.to_sql(table_name, db.engine, if_exists='append', index=False)
+                # 使用 SQLAlchemy 的 inspect 工具检查表是否存在
+                inspector = inspect(db.engine)
+                if inspector.has_table(table_name):
+                    # 如果表存在，手动删除表
+                    metadata = MetaData()
+                    table = Table(table_name, metadata, autoload_with=db.engine)
+                    table.drop(db.engine)
 
-            # 确保表中存在 'grade_level' 和 'comments' 列
-            ensure_columns_exist(table_name, {'grade_level': 'VARCHAR(255)', 'comments': 'VARCHAR(255)'}, db.engine)
-            # 调用 assign_grade_levels 函数分配 grade_level
-            assign_grade_levels(table_name, db.engine)
-            # 创建Mapping映射表
-            create_mapping_table(db.engine)
-            # 将原始文件名与表名的映射关系插入到映射表中
-            insert_mapping(original_filename, table_name, db.engine)
+                # 使用自定义工具函数根据文件表头动态创建数据库表
+                create_table_from_files(table_name, cleaned_columns, db.engine)
 
+                # 将数据插入到新创建的数据库表中
+                df.to_sql(table_name, db.engine, if_exists='append', index=False)
 
-            # 从数据库中读取数据
-            df_restored = pd.read_sql_table(table_name, db.engine)
+                # 确保表中存在 'grade_level' 和 'comments' 列
+                ensure_columns_exist(table_name, {'grade_level': 'VARCHAR(255)', 'comments': 'VARCHAR(255)'}, db.engine)
+                # 调用 assign_grade_levels 函数分配 grade_level
+                assign_grade_levels(table_name, db.engine)
+                # 创建Mapping映射表
+                create_mapping_table(db.engine)
+                # 将原始文件名与表名的映射关系插入到映射表中
+                insert_mapping(original_filename, table_name, db.engine)
 
-            # 恢复列名的空格，注意这里会保持列的顺序不变
-            restored_columns = FilesHandler.restore_column_names(df_restored.columns.tolist())
-            df_restored.columns = restored_columns  # 更新 DataFrame 的列名为恢复空格后的列名
+                # 从数据库中读取数据
+                df_restored = pd.read_sql_table(table_name, db.engine)
 
-            # 转换 DataFrame 为字典列表并返回
-            data = df_restored.to_dict(orient='records')
-            ordered_data = order_data_by_columns(restored_columns, data)
+                # 恢复列名的空格，注意这里会保持列的顺序不变
+                restored_columns = FilesHandler.restore_column_names(df_restored.columns.tolist())
+                df_restored.columns = restored_columns  # 更新 DataFrame 的列名为恢复空格后的列名
 
+                # 转换 DataFrame 为字典列表并返回
+                data = df_restored.to_dict(orient='records')
+                ordered_data = order_data_by_columns(restored_columns, data)
 
-            # 返回成功的 JSON 响应，包含表名、列名、插入的数据和警告信息
-            return jsonify({
-                "message": "File uploaded and data stored successfully",
-                "table_name": original_filename,  # 使用还原后的表名
-                "columns": restored_columns,  # 添加列名到响应中
-                "data": ordered_data,
-            }), 200
+                # 将成功信息添加到响应中
+                responses.append({
+                    "filename": file.filename,
+                    "message": "File uploaded and data stored successfully",
+                    "table_name": original_filename,  # 使用还原后的表名
+                    "columns": restored_columns,  # 添加列名到响应中
+                    "data": ordered_data,
+                })
 
-        except Exception as e:
-            # 捕获所有异常并返回详细的错误信息
-            error_message = str(e)
-            detailed_error = parse_error_message(error_message)
-            return jsonify(
-                {"error": "An error occurred during the file upload process", "details": detailed_error}), 500
+            except Exception as e:
+                # 捕获所有异常并返回详细的错误信息
+                error_message = str(e)
+                detailed_error = parse_error_message(error_message)
+                responses.append({
+                    "filename": file.filename,
+                    "error": "An error occurred during the file upload process",
+                    "details": detailed_error
+                })
+        else:
+            responses.append({"filename": file.filename, "error": "File type not allowed"})
 
-    return jsonify({"error": "File type not allowed"}), 400
+    # 返回所有文件的处理结果
+    return jsonify(responses), 200
 
 
 @main_bp.route('/update_student', methods=['POST'])
