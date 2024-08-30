@@ -57,7 +57,7 @@ def ensure_columns_exist(table_name, columns, db_engine):
     """
     inspector = inspect(db_engine)
     existing_columns = [col['name'] for col in inspector.get_columns(table_name)]
-    print(f"Existing columns in table {table_name}: {existing_columns}")  # 打印现有列名
+
 
     with db_engine.connect() as connection:
         trans = connection.begin()  # 开始事务
@@ -198,6 +198,113 @@ def assign_grade_levels(table_name, db_engine):
             trans.rollback()  # 回滚事务
             print(f"Error occurred: {e}")
             raise
+
+
+from sqlalchemy import MetaData, Table, Column, Integer, String
+from sqlalchemy.exc import SQLAlchemyError
+
+
+def create_mapping_table(db_engine):
+    """
+    创建文件名与表名的映射表，如果不存在的话。
+    :param db_engine: SQLAlchemy 的数据库引擎
+    """
+    metadata = MetaData()
+
+    # 定义映射表结构
+    mapping_table = Table(
+        'file_name_mapping', metadata,
+        Column('id', Integer, primary_key=True),
+        Column('original_filename', String(255), nullable=False),
+        Column('table_name', String(255), nullable=False),
+        Column('upload_time', String(255), nullable=False)
+    )
+
+    with db_engine.connect() as connection:
+        trans = connection.begin()  # 开始事务
+        try:
+            # 使用 inspect 来检查表是否已经存在
+            inspector = inspect(connection)
+            if not inspector.has_table('file_name_mapping'):
+                # 如果表不存在，创建表
+                metadata.create_all(db_engine)
+                print("Table 'file_name_mapping' created.")
+
+            trans.commit()  # 提交事务
+
+        except SQLAlchemyError as e:
+            print(f"Error occurred while creating the table: {e}")
+            trans.rollback()  # 在发生异常时回滚事务
+            raise
+
+
+def insert_mapping(original_filename, table_name, db_engine):
+    """
+    插入文件名和表名的映射关系。
+    :param original_filename: 上传的原始文件名
+    :param table_name: 在数据库中存储的表名
+    :param db_engine: 数据库引擎
+    """
+    with db_engine.connect() as connection:
+        trans = connection.begin()  # 开启事务
+        try:
+            # 检查是否存在仅大小写不同的原始文件名
+            check_query = text("SELECT original_filename FROM file_name_mapping WHERE LOWER(original_filename) = LOWER(:original_filename)")
+            result = connection.execute(check_query, {"original_filename": original_filename}).fetchone()
+
+            if result:
+                # 如果存在仅大小写不同的原始文件名，抛出异常
+                raise ValueError(f"A file with the same name but different capitalization already exists in the database: {result[0]}")
+
+            # 插入新的映射关系
+            insert_query = text(
+                "INSERT INTO file_name_mapping (original_filename, table_name, upload_time) "
+                "VALUES (:original_filename, :table_name, NOW())"
+            )
+            connection.execute(insert_query, {"original_filename": original_filename, "table_name": table_name})
+            trans.commit()  # 提交事务
+
+        except (SQLAlchemyError, ValueError) as e:
+            trans.rollback()  # 回滚事务
+            print(f"Error occurred while inserting mapping: {e}")
+            raise
+
+
+
+
+
+def get_original_filename(table_name, db_engine):
+    """
+    根据表名获取原始文件名。
+    :param table_name: 数据库表名
+    :param db_engine: 数据库引擎
+    :return: 原始文件名
+    """
+    with db_engine.connect() as connection:
+        try:
+            select_query = text("SELECT original_filename FROM file_name_mapping WHERE table_name = :table_name")
+            result = connection.execute(select_query, {"table_name": table_name}).fetchone()
+            return result[0] if result else None  # 使用索引访问元组中的数据
+        except SQLAlchemyError as e:
+            print(f"Error occurred while fetching original filename: {e}")
+            raise
+
+def get_all_original_filenames(db_engine):
+    """
+    从 file_name_mapping 表中获取所有原始文件名。
+    :param db_engine: 数据库引擎
+    :return: 原始文件名列表
+    """
+    with db_engine.connect() as connection:
+        try:
+            select_query = text("SELECT original_filename FROM file_name_mapping")
+            result = connection.execute(select_query).fetchall()
+            original_filenames = [row[0] for row in result]
+            return original_filenames
+        except SQLAlchemyError as e:
+            print(f"Error occurred while fetching original filenames: {e}")
+            raise
+
 
 
 

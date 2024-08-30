@@ -17,14 +17,14 @@ def bar_chart():
 
     # 从请求数据中获取表名
     filename = data.get('filename')
-
+    origin_filename = filename
     # 如果没有提供表名，返回错误信息
     if not filename:
         return jsonify({"error": "Table name is required"}), 400
 
     try:
         # 使用 clean_table_name 函数清理表名
-        clean_table_name = FilesHandler.clean_table_name(filename)
+        clean_table_name = FilesHandler.clean_table_name(filename).lower()
 
         # 使用 text 构建一个 SQL 查询，统计每个 grade_level 的数量
         query = text(f"SELECT grade_level, COUNT(*) as count FROM `{clean_table_name}` GROUP BY grade_level")
@@ -49,13 +49,12 @@ def bar_chart():
                 count = row[count_idx]  # 使用索引获取 count 的值
                 grade_counts[grade_level] = count  # 将结果添加到字典中
 
-        # 将表名还原为原始格式
-        restored_table_name = FilesHandler.restore_table_name(clean_table_name)
+
 
         # 返回成功响应，并将结果字典发送给前端
         return jsonify({
             "message": "Data retrieved successfully",
-            "filename": restored_table_name,  # 返回还原后的表名
+            "filename": origin_filename,  # 返回还原后的表名
             "data": grade_counts
         }), 200
 
