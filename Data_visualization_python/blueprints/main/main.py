@@ -3,7 +3,8 @@ from flask import Blueprint, request, jsonify, send_file, current_app
 from werkzeug.utils import secure_filename
 import pandas as pd
 from models import db
-from utils.db_helpers import create_table_from_files, fetch_table_data, ensure_columns_exist, update_student_record,parse_error_message,assign_grade_levels
+from utils.db_helpers import create_table_from_files, fetch_table_data, ensure_columns_exist, update_student_record, \
+    parse_error_message, assign_grade_levels,insert_mapping,get_original_filename,create_mapping_table,get_all_original_filenames
 from sqlalchemy import inspect, MetaData, Table, Column, String, text
 from utils.files_utils import FilesHandler  # 导入 Handler 工具类
 from utils.common_utils import order_data_by_columns  # 导入 CSVHandler 工具类
@@ -22,9 +23,6 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-
-
-
 @main_bp.route('/upload', methods=['POST'])
 def upload_file():
     """
@@ -40,8 +38,8 @@ def upload_file():
         return jsonify({"error": "No selected file"}), 400
 
     if file and allowed_file(file.filename):
-        filename = file.filename
-        check_filename = os.path.splitext(filename)[0]
+        original_filename  = os.path.splitext(file.filename)[0]
+        check_filename = os.path.splitext(original_filename)[0].lower()
 
         # 检查文件名是否合法
         valid_filename, error_message = FilesHandler.validate_filename(check_filename)
@@ -53,9 +51,9 @@ def upload_file():
 
         try:
             # 读取上传的文件内容，并转换为 Pandas DataFrame
-            if filename.endswith('.csv'):
+            if (file.filename).endswith('.csv'):
                 df = pd.read_csv(file)
-            elif filename.endswith(('.xlsx', '.xls')):
+            elif (file.filename).endswith(('.xlsx', '.xls')):
                 df = pd.read_excel(file)
 
             # 确保列名是字符串
@@ -85,6 +83,12 @@ def upload_file():
             ensure_columns_exist(table_name, {'grade_level': 'VARCHAR(255)', 'comments': 'VARCHAR(255)'}, db.engine)
             # 调用 assign_grade_levels 函数分配 grade_level
             assign_grade_levels(table_name, db.engine)
+            # 创建Mapping映射表
+            create_mapping_table(db.engine)
+            # 将原始文件名与表名的映射关系插入到映射表中
+            insert_mapping(original_filename, table_name, db.engine)
+
+
             # 从数据库中读取数据
             df_restored = pd.read_sql_table(table_name, db.engine)
 
@@ -96,13 +100,11 @@ def upload_file():
             data = df_restored.to_dict(orient='records')
             ordered_data = order_data_by_columns(restored_columns, data)
 
-            # 修改：在返回给前端前还原表名
-            restored_table_name = FilesHandler.restore_table_name(table_name)
 
             # 返回成功的 JSON 响应，包含表名、列名、插入的数据和警告信息
             return jsonify({
                 "message": "File uploaded and data stored successfully",
-                "table_name": restored_table_name,  # 使用还原后的表名
+                "table_name": original_filename,  # 使用还原后的表名
                 "columns": restored_columns,  # 添加列名到响应中
                 "data": ordered_data,
             }), 200
@@ -115,7 +117,6 @@ def upload_file():
                 {"error": "An error occurred during the file upload process", "details": detailed_error}), 500
 
     return jsonify({"error": "File type not allowed"}), 400
-
 
 
 @main_bp.route('/update_student', methods=['POST'])
@@ -134,9 +135,13 @@ def update_student():
     if not filename or not id_number or grade_level is None or comments is None:
         return jsonify({"error": "Missing required parameters"}), 400
 
-    # 使用文件名（去掉扩展名）作为数据库表名，并清理表名
-    check_filename = os.path.splitext(filename)[0]
+    # 使用文件名（去掉扩展名）作为数据库表名，并清理表名,并将表名转换为小写格式
+    check_filename = filename.lower()
     table_name = FilesHandler.clean_table_name(check_filename)
+
+    original_filename = get_original_filename(table_name, db.engine)
+    if not original_filename:
+        return jsonify({"error": "Table not found in mapping"}), 404
 
     # 使用 SQLAlchemy 的 inspect 工具检查表是否存在
     inspector = inspect(db.engine)
@@ -149,7 +154,10 @@ def update_student():
     ensure_columns_exist(table_name, {'grade_level': 'VARCHAR(255)', 'comments': 'VARCHAR(255)'}, db.engine)
 
     # 更新表中指定 student_id 的记录
-    update_student_record(table, id_number, grade_level, comments, db.engine)
+    update_success = update_student_record(table, id_number, grade_level, comments, db.engine)
+
+    if not update_success:
+        return jsonify({"error": "Failed to update the student record"}), 500
 
     df_restored = pd.read_sql_table(table_name, db.engine)
 
@@ -161,33 +169,28 @@ def update_student():
     data = df_restored.to_dict(orient='records')
     ordered_data = order_data_by_columns(restored_columns, data)
 
-    # 在返回给前端时，将表名中的下划线还原为连字符
-    restored_table_name = FilesHandler.restore_table_name(table_name)
+
 
     # 返回成功的 JSON 响应，包含表名、列名、插入的数据和警告信息
     return jsonify({
         "message": "Student record updated successfully",
-        "table_name": restored_table_name,  # 使用还原后的文件名
+        "table_name": original_filename,  # 使用还原后的文件名
         "columns": restored_columns,  # 添加列名到响应中
         "data": ordered_data,
     }), 200
 
 
-
 @main_bp.route('/list_csv', methods=['GET'])
 def list_csv():
     """
-    返回数据库中所有表的名称，并将下划线还原为连字符
+    从映射表中返回所有的原始文件名
     """
-    inspector = inspect(db.engine)  # 使用 SQLAlchemy 的 inspect 工具来检查数据库
-    tables = inspector.get_table_names()  # 获取所有表的名称
-
-    # 新增：将表名中的下划线还原为连字符
-    restored_tables = [FilesHandler.restore_table_name(table) for table in tables]
-
-    return jsonify({"CSV files": restored_tables}), 200  # 将表名列表返回给前端
-
-
+    try:
+        # 调用 db_helpers.py 中的函数来获取原始文件名列表
+        original_filenames = get_all_original_filenames(db.engine)
+        return jsonify({"CSV files": original_filenames}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch CSV files: {str(e)}"}), 500
 
 @main_bp.route('/export_csv', methods=['POST'])
 def export_csv():
@@ -201,31 +204,42 @@ def export_csv():
         return jsonify({"error": "No filename provided"}), 400
 
     filename = data['filename']
-    check_filename = os.path.splitext(filename)[0]
+    original_filename = filename
+    check_filename = filename.lower()
 
-    # 修改1: 使用清理后的表名作为数据库表名
+    # 使用清理后的表名作为数据库表名
     table_name = FilesHandler.clean_table_name(check_filename)
 
-    # 从数据库中提取数据
-    query = text(f"SELECT * FROM `{table_name}`")
-    with db.engine.connect() as connection:
-        result = connection.execute(query)
-        data = [dict(row._mapping) for row in result]
+    try:
+        # 从数据库中提取数据
+        query = text(f"SELECT * FROM `{table_name}`")
+        with db.engine.connect() as connection:
+            result = connection.execute(query)
+            data = [dict(row._mapping) for row in result]
 
-    # 将数据转换为 DataFrame
-    df = pd.DataFrame(data)
+        if not data:
+            return jsonify({"error": "No data found in the table."}), 404
 
-    # 恢复列名中的空格
-    restored_columns = FilesHandler.restore_column_names(df.columns.tolist())
-    df.columns = restored_columns  # 更新 DataFrame 的列名为恢复空格后的列名
+        # 将数据转换为 DataFrame
+        df = pd.DataFrame(data)
 
-    # 修改2: 强制将导出的文件扩展名设置为 '.csv'，并使用还原后的表名作为文件名
-    restored_table_name = FilesHandler.restore_table_name(table_name)
-    output_filename = os.path.join(current_app.config['UPLOAD_FOLDER'], restored_table_name + '.csv')
+        # 恢复列名中的空格
+        restored_columns = FilesHandler.restore_column_names(df.columns.tolist())
+        df.columns = restored_columns  # 更新 DataFrame 的列名为恢复空格后的列名
 
-    # 将数据写入到新的 CSV 文件
-    df.to_csv(output_filename, index=False, encoding='utf-8')
+        # 强制将导出的文件扩展名设置为 '.csv'，并使用还原后的表名作为文件名
+        output_filename = os.path.join(current_app.config['UPLOAD_FOLDER'], original_filename + '.csv')
 
-    # 提供下载该 CSV 文件
-    return send_file(output_filename, as_attachment=True, download_name=restored_table_name + '.csv')
+        # 将数据写入到新的 CSV 文件
+        df.to_csv(output_filename, index=False, encoding='utf-8')
+
+        # 提供下载该 CSV 文件
+        return send_file(output_filename, as_attachment=True, download_name=original_filename + '.csv')
+
+    except Exception as e:
+        # 捕获所有异常并返回详细的错误信息
+        error_message = str(e)
+        detailed_error = parse_error_message(error_message)
+        return jsonify(
+            {"error": "An error occurred during the export process", "details": detailed_error}), 500
 
