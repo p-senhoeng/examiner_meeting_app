@@ -136,7 +136,7 @@ def update_student():
         return jsonify({"error": "Missing required parameters"}), 400
 
     # 使用文件名（去掉扩展名）作为数据库表名，并清理表名,并将表名转换为小写格式
-    check_filename = os.path.splitext(filename)[0].lower()
+    check_filename = filename.lower()
     table_name = FilesHandler.clean_table_name(check_filename)
 
     original_filename = get_original_filename(table_name, db.engine)
