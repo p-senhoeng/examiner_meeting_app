@@ -1,93 +1,93 @@
-import React, { useState } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import React from 'react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { Typography, Paper, Box } from '@mui/material';
 
-const GRADES = ['A+', 'A', 'B', 'C', 'D', 'E'];
-const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#a4de6c', '#d0ed57'];
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
-const buttonStyle = {
-  padding: '10px 15px',
-  margin: '0 5px 5px 0',
-  border: 'none',
-  borderRadius: '4px',
-  cursor: 'pointer',
-  fontSize: '14px',
-  transition: 'background-color 0.3s',
-};
+const GradeDistributionPieChart = ({ data }) => {
+  const gradeOrder = ['B', 'B+', 'A-', 'A', 'A+'];
+  const totalStudents = data.length;
 
-const GradeDistributionPieChart = ({ files }) => {
-  const [selectedFiles, setSelectedFiles] = useState(files.slice(0, 3));
+  const gradeDistribution = data.reduce((acc, student) => {
+    const grade = student['grade level'];
+    acc[grade] = (acc[grade] || 0) + 1;
+    return acc;
+  }, {});
 
-  const toggleFile = (file) => {
-    setSelectedFiles(prev => 
-      prev.includes(file)
-        ? prev.filter(f => f !== file)
-        : [...prev, file].slice(-3)
-    );
+  const chartData = gradeOrder.map(grade => {
+    const count = gradeDistribution[grade] || 0;
+    const percentage = (count / totalStudents * 100).toFixed(2);
+    return {
+      grade,
+      count,
+      percentage: parseFloat(percentage)
+    };
+  });
+
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div style={{ backgroundColor: 'white', padding: '10px', border: '1px solid #ccc' }}>
+          <p style={{ margin: '0 0 5px' }}><strong>{`Grade: ${data.grade}`}</strong></p>
+          <p style={{ margin: '0 0 5px' }}>{`Number of Students: ${data.count}`}</p>
+          <p style={{ margin: '0' }}>{`Percentage: ${data.percentage.toFixed(2)}%`}</p>
+        </div>
+      );
+    }
+    return null;
   };
 
-  const prepareData = (file) => {
-    return GRADES.map(grade => ({
-      name: grade,
-      value: file.data[grade] || 0
-    }));
-  };
+  const CustomLegend = ({ payload }) => (
+    <ul style={{ listStyle: 'none', padding: 0 }}>
+      {payload.map((entry, index) => (
+        <li key={`item-${index}`} style={{ display: 'inline-block', marginRight: '10px' }}>
+          <span style={{ 
+            display: 'inline-block', 
+            width: '10px', 
+            height: '10px', 
+            backgroundColor: entry.color, 
+            marginRight: '5px' 
+          }}></span>
+          {entry.value}
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
-    <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
-      <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px', textAlign: 'center' }}>Grade Distribution Pie Charts</h2>
-      <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-        {files.map(file => (
-          <button
-            key={file.name}
-            onClick={() => toggleFile(file)}
-            style={{
-              ...buttonStyle,
-              backgroundColor: selectedFiles.includes(file) ? '#3b82f6' : '#e5e7eb',
-              color: selectedFiles.includes(file) ? 'white' : 'black',
-            }}
+    <Paper elevation={2} sx={{ p: 3 }}>
+      <Typography variant="h6" gutterBottom>Grade Distribution</Typography>
+      <ResponsiveContainer width="100%" height={400}>
+        <PieChart>
+          <Pie
+            data={chartData}
+            cx="50%"
+            cy="50%"
+            labelLine={false}
+            outerRadius={150}
+            fill="#8884d8"
+            dataKey="count"
+            label={({ grade, percentage }) => `${grade} ${percentage.toFixed(1)}%`}
           >
-            {file.name}
-          </button>
-        ))}
-      </div>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        flexWrap: 'wrap', 
-        gap: '20px'
-      }}>
-        {selectedFiles.map((file, index) => (
-          <div key={file.name} style={{ 
-            width: 'calc(33.33% - 14px)', 
-            minWidth: '300px', 
-            maxWidth: '400px'
-          }}>
-            <h3 style={{ textAlign: 'center', marginBottom: '10px' }}>{file.name}</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={prepareData(file)}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  outerRadius={90}
-                  fill="#8884d8"
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                >
-                  {prepareData(file).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        ))}
-      </div>
-    </div>
+            {chartData.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip content={<CustomTooltip />} />
+          <Legend content={<CustomLegend />} />
+        </PieChart>
+      </ResponsiveContainer>
+      <Box mt={2}>
+        <Typography variant="body2">
+          This pie chart illustrates the distribution of grades across all students. 
+          Each slice represents a grade level, with the size of the slice indicating the proportion of students who achieved that grade. 
+          The chart is color-coded and labeled with both the grade and its percentage.
+          Hover over each slice to see more detailed information, including the exact number of students and the precise percentage.
+          This visualization offers a clear and immediate overview of the grade distribution, making it easy to identify the most common grades and the overall performance trend of the class.
+        </Typography>
+      </Box>
+    </Paper>
   );
 };
 
