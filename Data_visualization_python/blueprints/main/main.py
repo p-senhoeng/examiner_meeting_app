@@ -39,10 +39,14 @@ def upload_file():
         return jsonify({"error": "No selected file"}), 400
 
     responses = []
+
+    # 在循环外确保映射表存在，避免每个文件重复检查和创建
     create_column_mapping_table(db.engine)
+    create_mapping_table(db.engine)
+
     for file in files:
         if file.filename == '':
-            responses.append({"filename": "", "error": "No selected file"})
+            responses.append({"filename": "", "status": "failed", "error": "No selected file"})
             continue
 
         if file and allowed_file(file.filename):
@@ -52,7 +56,7 @@ def upload_file():
             # 检查文件名是否合法
             valid_filename, error_message = FilesHandler.validate_filename(check_filename)
             if not valid_filename:
-                responses.append({"filename": file.filename, "error": error_message})
+                responses.append({"filename": file.filename, "status": "failed", "error": error_message})
                 continue
 
             # 将连字符替换为下划线，使用文件名（去掉扩展名）作为数据库表名
@@ -90,46 +94,32 @@ def upload_file():
 
                 # 确保表中存在 'grade_level' 和 'comments' 列
                 ensure_columns_exist(table_name, {'grade_level': 'VARCHAR(255)', 'comments': 'VARCHAR(255)'}, db.engine)
+
                 # 调用 assign_grade_levels 函数分配 grade_level
                 assign_grade_levels(table_name, db.engine)
+
                 # 创建Mapping映射表
                 create_mapping_table(db.engine)
+
                 # 将原始文件名与表名的映射关系插入到映射表中
                 insert_mapping(original_filename, table_name, db.engine)
 
-                # 从数据库中读取数据
-                df_restored = pd.read_sql_table(table_name, db.engine)
-
-                # 恢复列名的空格，注意这里会保持列的顺序不变
-                restored_columns = FilesHandler.restore_column_names(df_restored.columns.tolist())
-                df_restored.columns = restored_columns  # 更新 DataFrame 的列名为恢复空格后的列名
-
-                # 转换 DataFrame 为字典列表并返回
-                data = df_restored.to_dict(orient='records')
-                ordered_data = order_data_by_columns(restored_columns, data)
-
-                # 将成功信息添加到响应中
-                responses.append({
-                    "filename": file.filename,
-                    "message": "File uploaded and data stored successfully",
-                    "table_name": original_filename,  # 使用还原后的表名
-                    "columns": restored_columns,  # 添加列名到响应中
-                    "data": ordered_data,
-                })
+                # 文件成功上传
+                responses.append({"filename": file.filename, "status": "success"})
 
             except Exception as e:
                 # 捕获所有异常并返回详细的错误信息
                 error_message = str(e)
-                detailed_error = parse_error_message(error_message)
                 responses.append({
                     "filename": file.filename,
+                    "status": "failed",
                     "error": "An error occurred during the file upload process",
-                    "details": detailed_error
+                    "details": error_message
                 })
         else:
-            responses.append({"filename": file.filename, "error": "File type not allowed"})
+            responses.append({"filename": file.filename, "status": "failed", "error": "File type not allowed"})
 
-    # 返回所有文件的处理结果
+    # 返回所有文件的处理结果，只包含文件名和状态
     return jsonify(responses), 200
 
 

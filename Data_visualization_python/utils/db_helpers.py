@@ -344,3 +344,62 @@ def create_column_mapping_table(db_engine):
         raise
 
 
+def generate_short_column_names(columns):
+    """
+    生成列名的简写形式
+    :param columns: 原始列名列表
+    :return: 简写列名列表
+    """
+    short_columns = []
+    for i, col in enumerate(columns):
+        short_column = f"col_{i+1}"  # 简写列名为 col_1, col_2, ...
+        short_columns.append(short_column)
+    return short_columns
+
+def insert_column_mapping(table_name, columns, short_columns, db_engine):
+    """
+    将表的原始列名和简写列名信息插入到 table_columns_mapping 表中
+    :param table_name: 数据库表的名称
+    :param columns: 原始列名列表
+    :param short_columns: 简写列名列表
+    :param db_engine: SQLAlchemy 数据库引擎
+    """
+    with db_engine.connect() as connection:
+        trans = connection.begin()  # 开启事务
+        try:
+            # 插入每个列的列名和列的顺序
+            for index, (original_column, short_column) in enumerate(zip(columns, short_columns)):
+                insert_query = text(
+                    "INSERT INTO table_columns_mapping (table_name, original_column_name, short_column_name, column_order) "
+                    "VALUES (:table_name, :original_column_name, :short_column_name, :column_order)"
+                )
+                connection.execute(insert_query, {
+                    "table_name": table_name,
+                    "original_column_name": original_column,
+                    "short_column_name": short_column,
+                    "column_order": index + 1  # 列的顺序，从 1 开始
+                })
+
+            trans.commit()  # 提交事务
+
+        except SQLAlchemyError as e:
+            trans.rollback()  # 回滚事务
+            print(f"Error occurred while inserting column mapping: {e}")
+            raise
+
+def get_table_columns(table_name, db_engine):
+    """
+    根据表名获取该表的所有原始列名和简写列名
+    :param table_name: 数据库表的名称
+    :param db_engine: SQLAlchemy 数据库引擎
+    :return: 该表的原始列名和简写列名
+    """
+    with db_engine.connect() as connection:
+        try:
+            select_query = text("SELECT original_column_name, short_column_name FROM table_columns_mapping WHERE table_name = :table_name ORDER BY column_order")
+            result = connection.execute(select_query, {"table_name": table_name}).fetchall()
+            columns = [{"original": row[0], "short": row[1]} for row in result]
+            return columns
+        except SQLAlchemyError as e:
+            print(f"Error occurred while fetching table columns: {e}")
+            raise
