@@ -1,6 +1,6 @@
 # utils/db_helpers.py
 
-from sqlalchemy import MetaData, Table, Column, Integer, String, inspect
+from sqlalchemy import MetaData, Table, Column, Integer, String, inspect,bindparam
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import text
 
@@ -50,22 +50,62 @@ def fetch_table_data(table_name, db_engine):
 
 def ensure_columns_exist(table_name, columns, db_engine):
     """
-    确保表中存在指定的列，如果不存在则添加
+    确保简化后的表中存在指定的列，如果不存在则添加。
+    同时为新添加的列生成简化名称，并将其更新到 table_columns_mapping 表中。
+
     :param table_name: 要操作的表名称
     :param columns: 需要确保存在的列及其类型，格式为字典 {'column_name': column_type}
     :param db_engine: 数据库引擎
     """
-    inspector = inspect(db_engine)
-    existing_columns = [col['name'] for col in inspector.get_columns(table_name)]
+    # 获取简化后的列名映射
+    column_mappings = get_table_columns(table_name, db_engine)
+    print(column_mappings)
 
+    # 提取表中已存在的简化列名
+    short_column_names = [col['short'] for col in column_mappings]
+    existing_columns = [col['original'] for col in column_mappings]  # 提取已有的原始列名
+
+    # 存储要插入的新列的映射关系
+    new_columns = []
+    new_short_columns = []
 
     with db_engine.connect() as connection:
         trans = connection.begin()  # 开始事务
         try:
-            for column_name, column_type in columns.items():
-                if column_name not in existing_columns:
-                    sql = f'ALTER TABLE {table_name} ADD COLUMN `{column_name}` {column_type}'
-                    connection.execute(text(sql))
+            # 遍历需要添加的列
+            for original_column_name, column_type in columns.items():
+                # 如果列已经存在，跳过处理
+                if original_column_name in existing_columns:
+                    print(f"Column {original_column_name} already exists, skipping.")
+                    continue
+
+                # 检查是否存在对应的简写列名
+                short_column_name = None
+                for col_mapping in column_mappings:
+                    if col_mapping['original'] == original_column_name:
+                        short_column_name = col_mapping['short']
+                        break
+
+                # 如果没有找到简写列名，生成新的简写列名
+                if not short_column_name:
+                    short_column_name = f"col_{len(short_column_names) + 1}"
+
+                    # 确保简写列名未被使用
+                    if short_column_name not in short_column_names:
+                        new_columns.append(original_column_name)
+                        new_short_columns.append(short_column_name)
+                        short_column_names.append(short_column_name)  # 添加到现有简写列名列表
+
+                        # 添加新列到表中，使用参数化SQL避免拼接
+                        alter_table_query = text(f"""
+                            ALTER TABLE {table_name} ADD COLUMN `{short_column_name}` {column_type}
+                        """)
+                        connection.execute(alter_table_query)
+
+            # 将新列的映射关系插入到 table_columns_mapping 表中
+            if new_columns and new_short_columns:
+                insert_column_mapping(table_name, new_columns, new_short_columns, db_engine)
+
             trans.commit()  # 提交事务
         except SQLAlchemyError as e:
             trans.rollback()  # 回滚事务
@@ -369,6 +409,8 @@ def insert_column_mapping(table_name, columns, short_columns, db_engine):
         try:
             # 插入每个列的列名和列的顺序
             for index, (original_column, short_column) in enumerate(zip(columns, short_columns)):
+                # 添加调试信息
+
                 insert_query = text(
                     "INSERT INTO table_columns_mapping (table_name, original_column_name, short_column_name, column_order) "
                     "VALUES (:table_name, :original_column_name, :short_column_name, :column_order)"
@@ -381,25 +423,45 @@ def insert_column_mapping(table_name, columns, short_columns, db_engine):
                 })
 
             trans.commit()  # 提交事务
+            print(f"Mapping successfully inserted for table {table_name}")
 
         except SQLAlchemyError as e:
             trans.rollback()  # 回滚事务
             print(f"Error occurred while inserting column mapping: {e}")
             raise
 
+
 def get_table_columns(table_name, db_engine):
     """
-    根据表名获取该表的所有原始列名和简写列名
+    根据表名获取该表的所有原始列名和简写列名。
+
     :param table_name: 数据库表的名称
     :param db_engine: SQLAlchemy 数据库引擎
     :return: 该表的原始列名和简写列名
     """
+    print(f"Fetching columns for table: {table_name}")  # 打印传入的 table_name
+
     with db_engine.connect() as connection:
         try:
-            select_query = text("SELECT original_column_name, short_column_name FROM table_columns_mapping WHERE table_name = :table_name ORDER BY column_order")
+            # 查询映射表，获取指定表的所有列名映射
+            select_query = text("""
+                SELECT original_column_name, short_column_name 
+                FROM table_columns_mapping 
+                WHERE table_name = :table_name 
+                ORDER BY id
+            """).bindparams(bindparam('table_name'))
+
             result = connection.execute(select_query, {"table_name": table_name}).fetchall()
+            # 打印查询结果以进行调试
+
+
+            # 将查询结果格式化为一个字典列表
             columns = [{"original": row[0], "short": row[1]} for row in result]
+
             return columns
+
         except SQLAlchemyError as e:
+            # 捕获数据库异常，打印错误信息并抛出异常
             print(f"Error occurred while fetching table columns: {e}")
             raise
+

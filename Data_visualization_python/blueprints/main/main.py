@@ -90,10 +90,10 @@ def upload_file():
                 # 将数据插入到新创建的数据库表中
                 df.to_sql(table_name, db.engine, if_exists='append', index=False)
 
-                # 确保表中存在 'grade_level' 和 'comments' 列
-                # ensure_columns_exist(table_name, {'grade_level': 'VARCHAR(255)', 'comments': 'VARCHAR(255)'}, db.engine)
+                # 确保表中存在 'grade level' 和 'comments' 列
 
-                # 调用 assign_grade_levels 函数分配 grade_level
+
+                # # 调用 assign_grade_levels 函数分配 grade_level
                 # assign_grade_levels(table_name, db.engine)
 
                 # 创建Mapping映射表
@@ -103,6 +103,8 @@ def upload_file():
                 insert_mapping(original_filename, table_name, db.engine)
                 # 调用列名映射函数，存储列名的映射关系
                 insert_column_mapping(table_name, columns, short_columns, db.engine)
+
+                ensure_columns_exist(table_name, {'grade level': 'VARCHAR(255)', 'comments': 'VARCHAR(255)'}, db.engine)
                 # 文件成功上传
                 responses.append({"filename": file.filename, "status": "success"})
 
