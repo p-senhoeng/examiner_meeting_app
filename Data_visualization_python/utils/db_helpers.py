@@ -65,7 +65,6 @@ def ensure_columns_exist(table_name, columns, db_engine):
             for column_name, column_type in columns.items():
                 if column_name not in existing_columns:
                     sql = f'ALTER TABLE {table_name} ADD COLUMN `{column_name}` {column_type}'
-                    print(f"Executing SQL: {sql}")  # 打印即将执行的 SQL 语句
                     connection.execute(text(sql))
             trans.commit()  # 提交事务
         except SQLAlchemyError as e:
@@ -145,16 +144,16 @@ def assign_grade_levels(table_name, db_engine):
     # 定义分数区间对应的等级
     grade_mapping = {
         (90, 100): 'A+',
-        (85, 89): 'A',
-        (80, 84): 'A-',
-        (75, 79): 'B+',
-        (70, 74): 'B',
-        (65, 69): 'B-',
-        (60, 64): 'C+',
-        (55, 59): 'C',
-        (50, 54): 'C-',
-        (40, 49): 'D',
-        (0, 39): 'E'
+        (85, 90): 'A',
+        (80, 85): 'A-',
+        (75, 80): 'B+',
+        (70, 75): 'B',
+        (65, 70): 'B-',
+        (60, 65): 'C+',
+        (55, 60): 'C',
+        (50, 55): 'C-',
+        (40, 50): 'D',
+        (0, 40): 'E'
     }
 
     with db_engine.connect() as connection:
@@ -254,7 +253,7 @@ def insert_mapping(original_filename, table_name, db_engine):
 
             if result:
                 # 如果存在仅大小写不同的原始文件名，抛出异常
-                raise ValueError(f"A file with the same name but different capitalization already exists in the database: {result[0]}")
+                raise ValueError(f"A file with the same name or same name with different capitalization already exists in the database: {result[0]}")
 
             # 插入新的映射关系
             insert_query = text(
