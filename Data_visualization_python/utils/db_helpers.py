@@ -208,34 +208,36 @@ def create_mapping_table(db_engine):
     创建文件名与表名的映射表，如果不存在的话。
     :param db_engine: SQLAlchemy 的数据库引擎
     """
-    metadata = MetaData()
+    try:
+        with db_engine.connect() as connection:
+            trans = connection.begin()  # 开始事务
+            try:
+                # 使用 inspect 来检查表是否已经存在
+                inspector = inspect(connection)
+                if not inspector.has_table('file_name_mapping'):
 
-    # 定义映射表结构
-    mapping_table = Table(
-        'file_name_mapping', metadata,
-        Column('id', Integer, primary_key=True),
-        Column('original_filename', String(255), nullable=False),
-        Column('table_name', String(255), nullable=False),
-        Column('upload_time', String(255), nullable=False)
-    )
+                    # 使用手动 SQL 创建表
+                    create_table_query = """
+                    CREATE TABLE file_name_mapping (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        original_filename VARCHAR(255) NOT NULL,
+                        table_name VARCHAR(255) NOT NULL,
+                        upload_time VARCHAR(255) NOT NULL
+                    );
+                    """
+                    connection.execute(text(create_table_query))
 
-    with db_engine.connect() as connection:
-        trans = connection.begin()  # 开始事务
-        try:
-            # 使用 inspect 来检查表是否已经存在
-            inspector = inspect(connection)
-            if not inspector.has_table('file_name_mapping'):
-                # 如果表不存在，创建表
-                metadata.create_all(db_engine)
-                print("Table 'file_name_mapping' created.")
 
-            trans.commit()  # 提交事务
+                trans.commit()  # 提交事务
 
-        except SQLAlchemyError as e:
-            print(f"Error occurred while creating the table: {e}")
-            trans.rollback()  # 在发生异常时回滚事务
-            raise
+            except SQLAlchemyError as e:
+                print(f"Error occurred during transaction: {e}")
+                trans.rollback()  # 在发生异常时回滚事务
+                raise
 
+    except SQLAlchemyError as e:
+        print(f"Error occurred during connection: {e}")
+        raise
 
 def insert_mapping(original_filename, table_name, db_engine):
     """
@@ -305,5 +307,40 @@ def get_all_original_filenames(db_engine):
             raise
 
 
+def create_column_mapping_table(db_engine):
+    """
+    创建一个存储表头信息的映射表，包含表名和列名的对应关系。
+    :param db_engine: SQLAlchemy 的数据库引擎
+    """
+    try:
+        with db_engine.connect() as connection:
+            trans = connection.begin()  # 开始事务
+            try:
+                # 使用 inspect 来检查表是否已经存在
+                inspector = inspect(connection)
+                if not inspector.has_table('table_columns_mapping'):
+
+                    # 使用手动 SQL 创建表
+                    create_table_query = """
+                    CREATE TABLE table_columns_mapping (id INT AUTO_INCREMENT PRIMARY KEY,
+                        table_name VARCHAR(255) NOT NULL,
+                        original_column_name VARCHAR(255) NOT NULL,
+                        short_column_name VARCHAR(255) NOT NULL,
+                        column_order INT NOT NULL
+                    );
+                    """
+                    connection.execute(text(create_table_query))
+
+
+                trans.commit()  # 提交事务
+
+            except SQLAlchemyError as e:
+                print(f"Error occurred during transaction: {e}")
+                trans.rollback()  # 在发生异常时回滚事务
+                raise
+
+    except SQLAlchemyError as e:
+        print(f"Error occurred during connection: {e}")
+        raise
 
 

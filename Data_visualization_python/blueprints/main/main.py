@@ -4,7 +4,8 @@ from werkzeug.utils import secure_filename
 import pandas as pd
 from models import db
 from utils.db_helpers import create_table_from_files, fetch_table_data, ensure_columns_exist, update_student_record, \
-    parse_error_message, assign_grade_levels,insert_mapping,get_original_filename,create_mapping_table,get_all_original_filenames
+    parse_error_message, assign_grade_levels,insert_mapping,get_original_filename,create_mapping_table,get_all_original_filenames,\
+create_column_mapping_table
 from sqlalchemy import inspect, MetaData, Table, Column, String, text
 from utils.files_utils import FilesHandler  # 导入 Handler 工具类
 from utils.common_utils import order_data_by_columns  # 导入 CSVHandler 工具类
@@ -38,7 +39,7 @@ def upload_file():
         return jsonify({"error": "No selected file"}), 400
 
     responses = []
-
+    create_column_mapping_table(db.engine)
     for file in files:
         if file.filename == '':
             responses.append({"filename": "", "error": "No selected file"})
