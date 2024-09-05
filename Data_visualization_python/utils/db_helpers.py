@@ -415,7 +415,7 @@ def insert_column_mapping(table_name, columns, short_columns, db_engine):
     :param short_columns: 简写列名列表
     :param db_engine: SQLAlchemy 数据库引擎
     """
-    print(f"Inserting column mapping for table: {table_name}")  # 打印调试信息
+
 
     with db_engine.begin() as connection:
         try:
@@ -470,10 +470,7 @@ def get_table_columns(table_name, db_engine):
 
             result = connection.execute(select_query, {"table_name": table_name}).fetchall()
 
-            # 打印查询结果以进行调试
 
-            for row in result:
-                print(f"Original: {row[0]}, Short: {row[1]}")
 
             # 将查询结果格式化为一个字典列表
             columns = [{"original": row[0], "short": row[1]} for row in result]
