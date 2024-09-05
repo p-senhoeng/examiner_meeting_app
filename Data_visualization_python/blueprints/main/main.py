@@ -1,6 +1,7 @@
 import os
 from flask import Blueprint, request, jsonify, send_file, current_app
 from pandas.io.sql import table_exists
+from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.utils import secure_filename
 import pandas as pd
 from models import db
@@ -8,7 +9,7 @@ from utils.db_helpers import create_table_from_files, fetch_table_data, ensure_c
     parse_error_message, assign_grade_levels, insert_mapping, get_original_filename, create_mapping_table, \
     get_all_original_filenames, \
     create_column_mapping_table, generate_short_column_names, insert_column_mapping, get_max_column_order, \
-    get_table_columns
+    get_table_columns,get_table_data
 from sqlalchemy import inspect, MetaData, Table, Column, String, text
 from utils.files_utils import FilesHandler  # 导入 Handler 工具类
 from utils.common_utils import order_data_by_columns  # 导入 CSVHandler 工具类
@@ -188,37 +189,44 @@ def list_csv():
 @main_bp.route('/export_csv', methods=['POST'])
 def export_csv():
     """
-    接收前端请求，指定从数据库提取哪个CSV文件，并生成新的CSV文件供前端下载
-    """
+       接受前端上传的 CSV 文件名，返回对应的数据库表内容
+       """
     data = request.json
+    filename = data.get('filename')
 
-    # 检查请求中是否包含 'filename'
-    if 'filename' not in data:
-        return jsonify({"error": "No filename provided"}), 400
+    if not filename:
+        return jsonify({"error": "Filename is required"}), 400
 
-    filename = data['filename']
-    original_filename = filename
-    check_filename = filename.lower()
+    # 使用文件名（去掉扩展名）作为数据库表名，并清理表名
+    table_name = FilesHandler.clean_table_name(filename.lower())
 
-    # 使用清理后的表名作为数据库表名
-    table_name = FilesHandler.clean_table_name(check_filename)
+    if not table_exists(table_name, db.engine):
+        return jsonify({"error": "Table not found"}), 404
 
     try:
-        # 从数据库中提取数据
-        query = text(f"SELECT * FROM `{table_name}`")
-        with db.engine.connect() as connection:
-            result = connection.execute(query)
-            data = [dict(row._mapping) for row in result]
+        # 获取表的列映射
+        columns = get_table_columns(table_name, db.engine)
 
-        if not data:
-            return jsonify({"error": "No data found in the table."}), 404
+        # 创建短列名到原始列名的映射
+        column_mapping = {col['short']: col['original'] for col in columns}
+
+        # 获取表数据
+        data = get_table_data(table_name, db.engine)
+
+        # 将短列名替换为原始列名
+        for row in data:
+            for short_name, original_name in column_mapping.items():
+                if short_name in row:
+                    row[original_name] = row.pop(short_name)
+
+        # 获取原始文件名（如果存在映射的话）
+        original_filename = get_original_filename(table_name, db.engine)
 
         # 将数据转换为 DataFrame
         df = pd.DataFrame(data)
 
         # 恢复列名中的空格
-        restored_columns = FilesHandler.restore_column_names(df.columns.tolist())
-        df.columns = restored_columns  # 更新 DataFrame 的列名为恢复空格后的列名
+
 
         # 强制将导出的文件扩展名设置为 '.csv'，并使用还原后的表名作为文件名
         output_filename = os.path.join(current_app.config['UPLOAD_FOLDER'], original_filename + '.csv')
@@ -236,3 +244,49 @@ def export_csv():
         return jsonify(
             {"error": "An error occurred during the export process", "details": detailed_error}), 500
 
+
+@main_bp.route('/get_table_data', methods=['POST'])
+def get_table_data_route():
+    """
+    接受前端上传的 CSV 文件名，返回对应的数据库表内容
+    """
+    data = request.json
+    filename = data.get('filename')
+
+    if not filename:
+        return jsonify({"error": "Filename is required"}), 400
+
+    # 使用文件名（去掉扩展名）作为数据库表名，并清理表名
+    table_name = FilesHandler.clean_table_name(filename.lower())
+
+    if not table_exists(table_name, db.engine):
+        return jsonify({"error": "Table not found"}), 404
+
+    try:
+        # 获取表的列映射
+        columns = get_table_columns(table_name, db.engine)
+
+        # 创建短列名到原始列名的映射
+        column_mapping = {col['short']: col['original'] for col in columns}
+
+        # 获取表数据
+        data = get_table_data(table_name, db.engine)
+
+        # 将短列名替换为原始列名
+        for row in data:
+            for short_name, original_name in column_mapping.items():
+                if short_name in row:
+                    row[original_name] = row.pop(short_name)
+
+        # 获取原始文件名（如果存在映射的话）
+        original_filename = get_original_filename(table_name,db.engine)
+
+        return jsonify({
+            "table_name": original_filename,
+            "columns": list(column_mapping.values()),
+            "data": data
+        }), 200
+
+
+    except Exception as e:
+        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500

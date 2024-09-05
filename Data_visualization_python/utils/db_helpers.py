@@ -471,7 +471,7 @@ def get_table_columns(table_name, db_engine):
             result = connection.execute(select_query, {"table_name": table_name}).fetchall()
 
             # 打印查询结果以进行调试
-            print("Debug: Query result from table_columns_mapping:")
+
             for row in result:
                 print(f"Original: {row[0]}, Short: {row[1]}")
 
@@ -512,4 +512,27 @@ def get_max_column_order(db_engine):
         except SQLAlchemyError as e:
             # 捕获数据库异常，打印错误信息并抛出异常
             print(f"Error occurred while fetching max column order: {e}")
+            raise
+
+
+def get_table_data( table_name,db_engine):
+    """获取表的所有数据"""
+
+
+    with db_engine.connect() as connection:
+        try:
+            query = text(f"SELECT * FROM {table_name}")
+            result = connection.execute(query)
+
+            # 获取列名
+            columns = result.keys()
+
+            # 将结果转换为字典列表
+            data = [dict(zip(columns, row)) for row in result.fetchall()]
+
+
+            return data
+
+        except SQLAlchemyError as e:
+            print(f"Error occurred while fetching data from table {table_name}: {e}")
             raise
