@@ -103,7 +103,8 @@ def upload_file():
 
                 # 确保表中存在 'grade level' 和 'comments' 列，并传入当前的最大column_order
                 ensure_columns_exist(table_name, {'grade level': 'VARCHAR(255)', 'comments': 'VARCHAR(255)'}, db.engine, current_max_order)
-
+                # 分配成绩等级
+                assign_grade_levels(table_name, db.engine)
                 # 文件成功上传
                 responses.append({"filename": file.filename, "status": "success"})
 

@@ -201,27 +201,38 @@ def assign_grade_levels(table_name, db_engine):
         (0, 40): 'E'
     }
 
-    with db_engine.connect() as connection:
-        trans = connection.begin()  # 开始事务
+    # 获取表的列映射
+    columns = get_table_columns(table_name, db_engine)
+
+    # 找到 id number 和 paper total (real) 对应的短列名
+    id_number_col = next((col['short'] for col in columns if col['original'] == 'ID number'), None)
+    paper_total_col = next((col['short'] for col in columns if col['original'] == 'Paper total (Real)'), None)
+    grade_level_col = next((col['short'] for col in columns if col['original'] == 'grade level'), None)
+
+    # 添加调试打印
+    if not all([id_number_col, paper_total_col, grade_level_col]):
+        raise ValueError(f"Required columns not found in the table. Found columns: {columns}")
+
+    with db_engine.begin() as connection:
         try:
             # 查询每个学生的 paper_total_(real) 分数
-            select_query = text(f"SELECT id_number, `paper_total_(real)` FROM {table_name}")
+            select_query = text(f"SELECT {id_number_col}, {paper_total_col} FROM {table_name}")
             result = connection.execute(select_query)
 
-            # 获取列名并转换为列表
-            columns = list(result.keys())
-            id_number_idx = columns.index('id_number')
-            paper_total_idx = columns.index('paper_total_(real)')
+            # 获取列名
+            column_names = result.keys()
 
             # 为每个学生分配等级
             for row in result:
-                student_id = row[id_number_idx]  # 根据索引获取 id_number
-                score = row[paper_total_idx]     # 根据索引获取 paper_total_(real)
+                # 将行转换为字典
+                row_dict = dict(zip(column_names, row))
+                student_id = row_dict[id_number_col]
+                score = row_dict[paper_total_col]
 
                 # 确保 score 是一个数字（例如整数或浮点数）
                 try:
                     score = float(score)
-                except ValueError:
+                except (ValueError, TypeError):
                     print(f"Invalid score '{score}' for student ID '{student_id}'")
                     continue
 
@@ -234,13 +245,14 @@ def assign_grade_levels(table_name, db_engine):
 
                 if grade_level:
                     # 更新学生的 grade_level 列
-                    update_query = text(f"UPDATE {table_name} SET grade_level = :grade_level WHERE id_number = :id_number")
+                    update_query = text(
+                        f"UPDATE {table_name} SET {grade_level_col} = :grade_level WHERE {id_number_col} = :id_number")
                     connection.execute(update_query, {"grade_level": grade_level, "id_number": student_id})
 
-            trans.commit()  # 提交事务
+            print(f"Grade levels assigned for table {table_name}")
+
         except SQLAlchemyError as e:
-            trans.rollback()  # 回滚事务
-            print(f"Error occurred: {e}")
+            print(f"Error occurred while assigning grade levels: {e}")
             raise
 
 
