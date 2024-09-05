@@ -118,52 +118,47 @@ def ensure_columns_exist(table_name, columns, db_engine, max_column_order):
             print(f"Error occurred while ensuring columns exist: {e}")
             raise
 
-def update_student_record(table, id_number, grade_level, comments, db_engine):
+def update_student_record(table_name, id_number, grade_level, comments, db_engine,
+                          id_number_col, grade_level_col, comments_col):
     """
     更新学生记录的 grade_level 和 comments
-    :param table: 表对象
+    :param table_name: 表名
     :param id_number: 学生的 ID
     :param grade_level: 等级
     :param comments: 评语
     :param db_engine: 数据库引擎
+    :param id_number_col: ID number 列的短名称
+    :param grade_level_col: grade level 列的短名称
+    :param comments_col: comments 列的短名称
     """
-    with db_engine.connect() as connection:
-        trans = connection.begin()  # 开始事务
+    with db_engine.begin() as connection:
         try:
-            # 打印列名和类型
-            for column in table.columns:
-                print(f"Column name: {column.name}, Type: {column.type}")
-
             # 先检查记录是否存在
-            select_query = table.select().where(table.c['id_number'] == id_number)
-            result = connection.execute(select_query).fetchone()
+            select_query = text(f"SELECT * FROM {table_name} WHERE {id_number_col} = :id_number")
+            result = connection.execute(select_query, {"id_number": id_number}).fetchone()
 
             if result:
                 print("Record found:", result)
                 # 如果记录存在，执行更新操作
-                update_query = (
-                    table.update()
-                    .where(table.c['id_number'] == id_number)
-                    .values({
-                        table.c['grade_level']: grade_level,
-                        table.c['comments']: comments
-                    })
-                )
-                update_result = connection.execute(update_query)
+                update_query = text(f"""
+                    UPDATE {table_name}
+                    SET {grade_level_col} = :grade_level, {comments_col} = :comments
+                    WHERE {id_number_col} = :id_number
+                """)
+                update_result = connection.execute(update_query, {
+                    "grade_level": grade_level,
+                    "comments": comments,
+                    "id_number": id_number
+                })
                 print(f"Rows affected: {update_result.rowcount}")
 
-                trans.commit()  # 提交事务
                 return update_result.rowcount > 0  # 返回是否成功更新
             else:
-                print(f"No matching record found for id_number: {id_number}")
-                trans.rollback()  # 回滚事务
+                print(f"No matching record found for ID number: {id_number}")
                 return False  # 返回未找到匹配记录
-        except Exception as e:
+        except SQLAlchemyError as e:
             print(f"Error occurred: {e}")
-            trans.rollback()  # 在发生异常时回滚事务
             raise
-
-
 def parse_error_message(error_message):
     """
     解析错误信息，并返回更具象化的错误描述
@@ -452,6 +447,7 @@ def insert_column_mapping(table_name, columns, short_columns, db_engine):
             print(f"Error occurred while inserting column mapping: {e}")
             raise
 
+
 def get_table_columns(table_name, db_engine):
     """
     根据表名获取该表的所有原始列名和简写列名。
@@ -469,12 +465,15 @@ def get_table_columns(table_name, db_engine):
                 SELECT original_column_name, short_column_name 
                 FROM table_columns_mapping 
                 WHERE table_name = :table_name 
-                ORDER BY id
-            """).bindparams(bindparam('table_name'))
+                ORDER BY column_order
+            """)
 
             result = connection.execute(select_query, {"table_name": table_name}).fetchall()
-            # 打印查询结果以进行调试
 
+            # 打印查询结果以进行调试
+            print("Debug: Query result from table_columns_mapping:")
+            for row in result:
+                print(f"Original: {row[0]}, Short: {row[1]}")
 
             # 将查询结果格式化为一个字典列表
             columns = [{"original": row[0], "short": row[1]} for row in result]
@@ -482,10 +481,8 @@ def get_table_columns(table_name, db_engine):
             return columns
 
         except SQLAlchemyError as e:
-            # 捕获数据库异常，打印错误信息并抛出异常
             print(f"Error occurred while fetching table columns: {e}")
             raise
-
 
 def get_max_column_order(db_engine):
     """

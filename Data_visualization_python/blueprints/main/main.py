@@ -4,8 +4,10 @@ from werkzeug.utils import secure_filename
 import pandas as pd
 from models import db
 from utils.db_helpers import create_table_from_files, fetch_table_data, ensure_columns_exist, update_student_record, \
-    parse_error_message, assign_grade_levels,insert_mapping,get_original_filename,create_mapping_table,get_all_original_filenames,\
-    create_column_mapping_table,generate_short_column_names,insert_column_mapping,get_max_column_order
+    parse_error_message, assign_grade_levels, insert_mapping, get_original_filename, create_mapping_table, \
+    get_all_original_filenames, \
+    create_column_mapping_table, generate_short_column_names, insert_column_mapping, get_max_column_order, \
+    get_table_columns
 from sqlalchemy import inspect, MetaData, Table, Column, String, text
 from utils.files_utils import FilesHandler  # 导入 Handler 工具类
 from utils.common_utils import order_data_by_columns  # 导入 CSVHandler 工具类
@@ -137,53 +139,50 @@ def update_student():
     grade_level = data.get('grade_level')
     comments = data.get('comments')
 
-    if not filename or not id_number or grade_level is None or comments is None:
+    if not all([filename, id_number, grade_level is not None, comments is not None]):
         return jsonify({"error": "Missing required parameters"}), 400
 
-    # 使用文件名（去掉扩展名）作为数据库表名，并清理表名,并将表名转换为小写格式
-    check_filename = filename.lower()
-    table_name = FilesHandler.clean_table_name(check_filename)
+    # 使用文件名（去掉扩展名）作为数据库表名，并清理表名
+    table_name = FilesHandler.clean_table_name(filename.lower())
 
-    original_filename = get_original_filename(table_name, db.engine)
-    if not original_filename:
-        return jsonify({"error": "Table not found in mapping"}), 404
-
-    # 使用 SQLAlchemy 的 inspect 工具检查表是否存在
+    # 检查表是否存在
     inspector = inspect(db.engine)
     if not inspector.has_table(table_name):
         return jsonify({"error": "Table not found"}), 404
 
-    metadata = MetaData()
-    table = Table(table_name, metadata, autoload_with=db.engine)
-    # 确保表中存在 'grade_level' 和 'comments' 列
-    ensure_columns_exist(table_name, {'grade_level': 'VARCHAR(255)', 'comments': 'VARCHAR(255)'}, db.engine)
+    # 获取表的列映射
+    columns = get_table_columns(table_name, db.engine)
+
+    # 找到 ID number, grade level 和 comments 对应的短列名
+    id_number_col = next((col['short'] for col in columns if col['original'] == 'ID number'), None)
+    grade_level_col = next((col['short'] for col in columns if col['original'].lower() == 'grade level'), None)
+    comments_col = next((col['short'] for col in columns if col['original'].lower() == 'comments'), None)
+
+    if not all([id_number_col, grade_level_col, comments_col]):
+        return jsonify({"error": "Required columns not found in the table"}), 500
 
     # 更新表中指定 student_id 的记录
-    update_success = update_student_record(table, id_number, grade_level, comments, db.engine)
+    update_success = update_student_record(table_name, id_number, grade_level, comments, db.engine,
+                                           id_number_col, grade_level_col, comments_col)
 
     if not update_success:
         return jsonify({"error": "Failed to update the student record"}), 500
 
-    df_restored = pd.read_sql_table(table_name, db.engine)
+    # 读取更新后的表数据
+    df = pd.read_sql_table(table_name, db.engine)
 
-    # 恢复列名的空格，注意这里会保持列的顺序不变
-    restored_columns = FilesHandler.restore_column_names(df_restored.columns.tolist())
-    df_restored.columns = restored_columns  # 更新 DataFrame 的列名为恢复空格后的列名
+    # 将短列名替换为原始列名
+    column_mapping = {col['short']: col['original'] for col in columns}
+    df.rename(columns=column_mapping, inplace=True)
 
-    # 转换 DataFrame 为字典列表并返回
-    data = df_restored.to_dict(orient='records')
-    ordered_data = order_data_by_columns(restored_columns, data)
+    # 转换 DataFrame 为字典列表
+    data = df.to_dict(orient='records')
 
-
-
-    # 返回成功的 JSON 响应，包含表名、列名、插入的数据和警告信息
     return jsonify({
         "message": "Student record updated successfully",
-        "table_name": original_filename,  # 使用还原后的文件名
-        "columns": restored_columns,  # 添加列名到响应中
-        "data": ordered_data,
-    }), 200
-
+        "data": data,
+        "columns": list(column_mapping.values())
+    })
 
 @main_bp.route('/list_csv', methods=['GET'])
 def list_csv():
