@@ -5,7 +5,7 @@ import pandas as pd
 from models import db
 from utils.db_helpers import create_table_from_files, fetch_table_data, ensure_columns_exist, update_student_record, \
     parse_error_message, assign_grade_levels,insert_mapping,get_original_filename,create_mapping_table,get_all_original_filenames,\
-    create_column_mapping_table,generate_short_column_names,insert_column_mapping
+    create_column_mapping_table,generate_short_column_names,insert_column_mapping,get_max_column_order
 from sqlalchemy import inspect, MetaData, Table, Column, String, text
 from utils.files_utils import FilesHandler  # 导入 Handler 工具类
 from utils.common_utils import order_data_by_columns  # 导入 CSVHandler 工具类
@@ -76,6 +76,7 @@ def upload_file():
 
                 short_columns = generate_short_column_names(columns)
                 df.columns = short_columns
+
                 # 使用 SQLAlchemy 的 inspect 工具检查表是否存在
                 inspector = inspect(db.engine)
                 if inspector.has_table(table_name):
@@ -90,21 +91,19 @@ def upload_file():
                 # 将数据插入到新创建的数据库表中
                 df.to_sql(table_name, db.engine, if_exists='append', index=False)
 
-                # 确保表中存在 'grade level' 和 'comments' 列
-
-
-                # # 调用 assign_grade_levels 函数分配 grade_level
-                # assign_grade_levels(table_name, db.engine)
-
-                # 创建Mapping映射表
-                create_mapping_table(db.engine)
-
                 # 将原始文件名与表名的映射关系插入到映射表中
                 insert_mapping(original_filename, table_name, db.engine)
+
                 # 调用列名映射函数，存储列名的映射关系
                 insert_column_mapping(table_name, columns, short_columns, db.engine)
 
-                ensure_columns_exist(table_name, {'grade level': 'VARCHAR(255)', 'comments': 'VARCHAR(255)'}, db.engine)
+                # 获取当前表的最大column_order
+                max_column_orders = get_max_column_order(db.engine)
+                current_max_order = max_column_orders.get(table_name, 0)
+
+                # 确保表中存在 'grade level' 和 'comments' 列，并传入当前的最大column_order
+                ensure_columns_exist(table_name, {'grade level': 'VARCHAR(255)', 'comments': 'VARCHAR(255)'}, db.engine, current_max_order)
+
                 # 文件成功上传
                 responses.append({"filename": file.filename, "status": "success"})
 

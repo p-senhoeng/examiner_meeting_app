@@ -48,70 +48,76 @@ def fetch_table_data(table_name, db_engine):
     return data
 
 
-def ensure_columns_exist(table_name, columns, db_engine):
+def ensure_columns_exist(table_name, columns, db_engine, max_column_order):
     """
     确保简化后的表中存在指定的列，如果不存在则添加。
-    同时为新添加的列生成简化名称，并将其更新到 table_columns_mapping 表中。
+    同时更新 table_columns_mapping 表中的列信息。
 
     :param table_name: 要操作的表名称
     :param columns: 需要确保存在的列及其类型，格式为字典 {'column_name': column_type}
     :param db_engine: 数据库引擎
+    :param max_column_order: 当前表的最大column_order
     """
-    # 获取简化后的列名映射
-    column_mappings = get_table_columns(table_name, db_engine)
-    print(column_mappings)
+    print(f"Ensuring columns exist for table: {table_name}")  # 打印调试信息
 
-    # 提取表中已存在的简化列名
-    short_column_names = [col['short'] for col in column_mappings]
-    existing_columns = [col['original'] for col in column_mappings]  # 提取已有的原始列名
-
-    # 存储要插入的新列的映射关系
-    new_columns = []
-    new_short_columns = []
-
-    with db_engine.connect() as connection:
-        trans = connection.begin()  # 开始事务
+    with db_engine.begin() as connection:
         try:
+            # 获取表的现有列
+            inspector = inspect(db_engine)
+            existing_columns = {col['name']: col['type'] for col in inspector.get_columns(table_name)}
+            print(f"Existing columns: {existing_columns}")
+
+            new_columns = []
+            new_short_columns = []
+
             # 遍历需要添加的列
-            for original_column_name, column_type in columns.items():
-                # 如果列已经存在，跳过处理
-                if original_column_name in existing_columns:
-                    print(f"Column {original_column_name} already exists, skipping.")
-                    continue
+            for column_name, column_type in columns.items():
+                if column_name not in existing_columns:
+                    # 生成新的简化列名
+                    max_column_order += 1
+                    short_column_name = f"col_{max_column_order}"
 
-                # 检查是否存在对应的简写列名
-                short_column_name = None
-                for col_mapping in column_mappings:
-                    if col_mapping['original'] == original_column_name:
-                        short_column_name = col_mapping['short']
-                        break
+                    # 添加新列到表中，使用参数化SQL避免拼接
+                    alter_table_query = text(f"""
+                        ALTER TABLE {table_name} ADD COLUMN `{short_column_name}` {column_type}
+                    """)
+                    connection.execute(alter_table_query)
+                    print(f"Added new column: {short_column_name} to table {table_name}")
 
-                # 如果没有找到简写列名，生成新的简写列名
-                if not short_column_name:
-                    short_column_name = f"col_{len(short_column_names) + 1}"
+                    new_columns.append(column_name)
+                    new_short_columns.append(short_column_name)
+                else:
+                    print(f"Column {column_name} already exists in table {table_name}")
 
-                    # 确保简写列名未被使用
-                    if short_column_name not in short_column_names:
-                        new_columns.append(original_column_name)
-                        new_short_columns.append(short_column_name)
-                        short_column_names.append(short_column_name)  # 添加到现有简写列名列表
+            # 如果有新列被添加，更新列名映射
+            if new_columns:
+                # 获取当前表的最大column_order
+                max_column_order_query = text("""
+                    SELECT MAX(column_order) as max_order
+                    FROM table_columns_mapping
+                    WHERE table_name = :table_name
+                """)
+                result = connection.execute(max_column_order_query, {"table_name": table_name})
+                current_max_order = result.scalar() or 0
 
-                        # 添加新列到表中，使用参数化SQL避免拼接
-                        alter_table_query = text(f"""
-                            ALTER TABLE {table_name} ADD COLUMN `{short_column_name}` {column_type}
-                        """)
-                        connection.execute(alter_table_query)
+                # 插入新的列映射
+                for index, (original_column, short_column) in enumerate(zip(new_columns, new_short_columns)):
+                    insert_query = text(
+                        "INSERT INTO table_columns_mapping (table_name, original_column_name, short_column_name, column_order) "
+                        "VALUES (:table_name, :original_column_name, :short_column_name, :column_order)"
+                    )
+                    connection.execute(insert_query, {
+                        "table_name": table_name,
+                        "original_column_name": original_column,
+                        "short_column_name": short_column,
+                        "column_order": current_max_order + index + 1
+                    })
 
-            # 将新列的映射关系插入到 table_columns_mapping 表中
-            if new_columns and new_short_columns:
-                insert_column_mapping(table_name, new_columns, new_short_columns, db_engine)
+            print(f"Ensured columns exist for table {table_name}")
 
-            trans.commit()  # 提交事务
         except SQLAlchemyError as e:
-            trans.rollback()  # 回滚事务
-            print(f"Error occurred: {e}")
+            print(f"Error occurred while ensuring columns exist: {e}")
             raise
-
 
 def update_student_record(table, id_number, grade_level, comments, db_engine):
     """
@@ -404,13 +410,21 @@ def insert_column_mapping(table_name, columns, short_columns, db_engine):
     :param short_columns: 简写列名列表
     :param db_engine: SQLAlchemy 数据库引擎
     """
-    with db_engine.connect() as connection:
-        trans = connection.begin()  # 开启事务
+    print(f"Inserting column mapping for table: {table_name}")  # 打印调试信息
+
+    with db_engine.begin() as connection:
         try:
+            # 获取当前表的最大column_order
+            max_column_order_query = text("""
+                SELECT MAX(column_order) as max_order
+                FROM table_columns_mapping
+                WHERE table_name = :table_name
+            """)
+            result = connection.execute(max_column_order_query, {"table_name": table_name})
+            max_column_order = result.scalar() or 0
+
             # 插入每个列的列名和列的顺序
             for index, (original_column, short_column) in enumerate(zip(columns, short_columns)):
-                # 添加调试信息
-
                 insert_query = text(
                     "INSERT INTO table_columns_mapping (table_name, original_column_name, short_column_name, column_order) "
                     "VALUES (:table_name, :original_column_name, :short_column_name, :column_order)"
@@ -419,17 +433,14 @@ def insert_column_mapping(table_name, columns, short_columns, db_engine):
                     "table_name": table_name,
                     "original_column_name": original_column,
                     "short_column_name": short_column,
-                    "column_order": index + 1  # 列的顺序，从 1 开始
+                    "column_order": max_column_order + index + 1  # 列的顺序，从 max_column_order + 1 开始
                 })
 
-            trans.commit()  # 提交事务
             print(f"Mapping successfully inserted for table {table_name}")
 
         except SQLAlchemyError as e:
-            trans.rollback()  # 回滚事务
             print(f"Error occurred while inserting column mapping: {e}")
             raise
-
 
 def get_table_columns(table_name, db_engine):
     """
@@ -465,3 +476,33 @@ def get_table_columns(table_name, db_engine):
             print(f"Error occurred while fetching table columns: {e}")
             raise
 
+
+def get_max_column_order(db_engine):
+    """
+    获取每个表的最大column_order
+    :param db_engine: SQLAlchemy 数据库引擎
+    :return: 字典，键为表名，值为该表的最大column_order
+    """
+    print("Fetching max column order for all tables")  # 打印调试信息
+
+    with db_engine.connect() as connection:
+        try:
+            query = text("""
+                SELECT table_name, MAX(column_order) as max_order
+                FROM table_columns_mapping
+                GROUP BY table_name
+            """)
+            result = connection.execute(query)
+
+            # 打印查询结果以进行调试
+            print(f"Query result: {result}")
+
+            max_orders = {row.table_name: row.max_order for row in result}
+
+            # 如果表为空，返回一个空字典
+            return max_orders if max_orders else {}
+
+        except SQLAlchemyError as e:
+            # 捕获数据库异常，打印错误信息并抛出异常
+            print(f"Error occurred while fetching max column order: {e}")
+            raise
