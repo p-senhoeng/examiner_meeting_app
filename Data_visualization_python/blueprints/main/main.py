@@ -1,5 +1,6 @@
 import os
 from flask import Blueprint, request, jsonify, send_file, current_app
+from pandas.io.sql import table_exists
 from werkzeug.utils import secure_filename
 import pandas as pd
 from models import db
@@ -129,7 +130,7 @@ def upload_file():
 @main_bp.route('/update_student', methods=['POST'])
 def update_student():
     """
-    根据前端传递的 filename 和 student_id 更新学生记录，并返回更新后的表数据
+    根据前端传递的 filename 和 student_id 更新学生记录
     """
     data = request.json  # 获取 JSON 格式的数据
 
@@ -146,8 +147,7 @@ def update_student():
     table_name = FilesHandler.clean_table_name(filename.lower())
 
     # 检查表是否存在
-    inspector = inspect(db.engine)
-    if not inspector.has_table(table_name):
+    if not table_exists(table_name, db.engine):
         return jsonify({"error": "Table not found"}), 404
 
     # 获取表的列映射
@@ -168,21 +168,10 @@ def update_student():
     if not update_success:
         return jsonify({"error": "Failed to update the student record"}), 500
 
-    # 读取更新后的表数据
-    df = pd.read_sql_table(table_name, db.engine)
-
-    # 将短列名替换为原始列名
-    column_mapping = {col['short']: col['original'] for col in columns}
-    df.rename(columns=column_mapping, inplace=True)
-
-    # 转换 DataFrame 为字典列表
-    data = df.to_dict(orient='records')
-
     return jsonify({
         "message": "Student record updated successfully",
-        "data": data,
-        "columns": list(column_mapping.values())
-    })
+        "id_number": id_number
+    }), 200
 
 @main_bp.route('/list_csv', methods=['GET'])
 def list_csv():
