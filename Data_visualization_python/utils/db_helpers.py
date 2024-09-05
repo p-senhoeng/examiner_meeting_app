@@ -4,7 +4,6 @@ from sqlalchemy import MetaData, Table, Column, Integer, String, inspect,bindpar
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import text
 
-
 def create_table_from_files(table_name, columns, db_engine):
     """
     根据文件的列名动态创建数据库表
@@ -245,8 +244,7 @@ def assign_grade_levels(table_name, db_engine):
             raise
 
 
-from sqlalchemy import MetaData, Table, Column, Integer, String
-from sqlalchemy.exc import SQLAlchemyError
+
 
 
 def create_mapping_table(db_engine):
