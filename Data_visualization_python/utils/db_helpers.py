@@ -515,21 +515,33 @@ def get_max_column_order(db_engine):
             raise
 
 
-def get_table_data( table_name,db_engine):
-    """获取表的所有数据"""
+def get_table_data(table_name, db_engine, exclude_columns=None):
+    """
+    获取表的所有数据，可选择剔除指定的列（如主键'id'）
 
+    :param table_name: 要查询的表名
+    :param db_engine: SQLAlchemy数据库引擎
+    :param exclude_columns: 要剔除的列名列表，默认为None
+    :return: 包含表数据的字典列表
+    """
+    if exclude_columns is None:
+        exclude_columns = []
 
     with db_engine.connect() as connection:
         try:
-            query = text(f"SELECT * FROM {table_name}")
+            # 首先获取表的所有列名
+            insp = inspect(db_engine)
+            all_columns = insp.get_columns(table_name)
+            column_names = [col['name'] for col in all_columns if col['name'] not in exclude_columns]
+
+            # 构建查询语句，只选择未被剔除的列
+            columns_str = ', '.join(column_names)
+            query = text(f"SELECT {columns_str} FROM {table_name}")
+
             result = connection.execute(query)
 
-            # 获取列名
-            columns = result.keys()
-
             # 将结果转换为字典列表
-            data = [dict(zip(columns, row)) for row in result.fetchall()]
-
+            data = [dict(zip(column_names, row)) for row in result.fetchall()]
 
             return data
 

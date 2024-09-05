@@ -211,7 +211,7 @@ def export_csv():
         column_mapping = {col['short']: col['original'] for col in columns}
 
         # 获取表数据
-        data = get_table_data(table_name, db.engine)
+        data = get_table_data(table_name, db.engine,exclude_columns=["id"])
 
         # 将短列名替换为原始列名
         for row in data:
@@ -270,7 +270,7 @@ def get_table_data_route():
         column_mapping = {col['short']: col['original'] for col in columns}
 
         # 获取表数据
-        data = get_table_data(table_name, db.engine)
+        data = get_table_data(table_name, db.engine,exclude_columns=["id"])
 
         # 将短列名替换为原始列名
         for row in data:
