@@ -55,7 +55,7 @@ def upload_file():
 
         if file and allowed_file(file.filename):
             original_filename = os.path.splitext(file.filename)[0]
-            check_filename = os.path.splitext(original_filename)[0].lower()
+            check_filename = original_filename.lower()
 
             # 检查文件名是否合法
             valid_filename, error_message = FilesHandler.validate_filename(check_filename)
@@ -66,6 +66,10 @@ def upload_file():
             # 将连字符替换为下划线，使用文件名（去掉扩展名）作为数据库表名
             table_name = FilesHandler.clean_table_name(check_filename)
 
+            valid_filename, error_message = FilesHandler.validate_filename(table_name)
+            if not valid_filename:
+                responses.append({"table_name": table_name, "status": "failed", "error": error_message})
+                continue
             try:
                 # 读取上传的文件内容，并转换为 Pandas DataFrame
                 if file.filename.endswith('.csv'):
