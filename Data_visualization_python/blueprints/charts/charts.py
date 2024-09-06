@@ -1,70 +1,71 @@
 from flask import Blueprint, request, jsonify
+from pandas.io.sql import table_exists
 from sqlalchemy import func
 from models import db
 from sqlalchemy.sql import text
 from utils.files_utils import FilesHandler
-from utils.db_helpers import get_original_filename
+from utils.db_helpers import get_original_filename, get_table_columns, get_columns_data
+
 # 创建一个蓝图用于charts相关的路由
 charts_bp = Blueprint('charts', __name__)
 
 
-@charts_bp.route('/barChart', methods=['POST'])
-def bar_chart():
+@charts_bp.route('/query_table_data', methods=['POST'])
+def query_table_data():
     """
-    处理前端发送的请求，根据指定的表名查询数据库中的 grade_level 列，
-    并统计每个等级的数量，最终将结果以字典的形式返回给前端。
+    接受前端上传的 CSV 文件名和要查询的列名，返回对应的数据库表内容
+    列名可以是单个字符串或字符串列表
     """
-    data = request.json  # 从请求中获取 JSON 格式的数据
-
-    # 从请求数据中获取表名
+    data = request.json
     filename = data.get('filename')
+    requested_columns = data.get('columns')
 
-    # 如果没有提供表名，返回错误信息
-    if not filename:
-        return jsonify({"error": "Table name is required"}), 400
+    # 使用文件名（去掉扩展名）作为数据库表名，并清理表名
+    table_name = FilesHandler.clean_table_name(filename.lower())
 
-    check_filename = filename.lower()
+    if not table_exists(table_name, db.engine):
+        return jsonify({"error": "Table not found"}), 404
 
     try:
+        # 处理输入：如果是单个字符串，转换为列表
+        if isinstance(requested_columns, str):
+            requested_columns = [requested_columns]
 
-        table_name = FilesHandler.clean_table_name(check_filename)
+        # 获取表的列映射
+        columns = get_table_columns(table_name, db.engine)
 
-        original_filename = get_original_filename(table_name, db.engine)
-        if not original_filename:
-            return jsonify({"error": "Table not found in mapping"}), 404
+        # 创建原始列名到短列名的映射
+        column_mapping = {col['original']: col['short'] for col in columns}
 
-        # 使用 text 构建一个 SQL 查询，统计每个 grade_level 的数量
-        query = text(f"SELECT grade_level, COUNT(*) as count FROM `{table_name}` GROUP BY grade_level")
+        # 找到请求的列名对应的短列名
+        short_column_names = []
+        for col in requested_columns:
+            short_name = column_mapping.get(col)
+            if short_name:
+                short_column_names.append(short_name)
+            else:
+                # 如果找不到对应的短列名，可能是因为列名不存在，这里我们选择忽略它
+                print(f"Warning: Column '{col}' not found in the table.")
 
-        # 连接到数据库并执行查询
-        with db.engine.connect() as connection:
-            result = connection.execute(query)  # 执行查询并获取结果
+        # 如果没有有效的列名，返回错误
+        if not short_column_names:
+            return jsonify({"error": "No valid columns specified"}), 400
 
-            # 将 result.keys() 转换为列表
-            columns = list(result.keys())
+        # 使用短列名查询数据
+        result_data = get_columns_data(table_name, short_column_names, db.engine)
 
-            # 获取 grade_level 和 count 列在结果中的索引
-            grade_level_idx = columns.index('grade_level')
-            count_idx = columns.index('count')
+        # 将数据按列重新组织
+        column_grouped_data = {}
+        reverse_mapping = {v: k for k, v in column_mapping.items()}
 
-            # 初始化一个空字典用于存储结果
-            grade_counts = {}
+        for short_name in short_column_names:
+            original_name = reverse_mapping.get(short_name, short_name)
+            column_grouped_data[original_name] = [row[short_name] for row in result_data]
 
-            # 遍历查询结果，将每个等级及其对应的数量添加到字典中
-            for row in result:
-                grade_level = row[grade_level_idx]  # 使用索引获取 grade_level 的值
-                count = row[count_idx]  # 使用索引获取 count 的值
-                grade_counts[grade_level] = count  # 将结果添加到字典中
-
-
-
-        # 返回成功响应，并将结果字典发送给前端
         return jsonify({
-            "message": "Data retrieved successfully",
-            "filename": original_filename,  # 返回还原后的表名
-            "data": grade_counts
+            "table_name": filename,
+            "data": column_grouped_data
         }), 200
 
     except Exception as e:
-        # 捕获任何异常，并返回包含错误信息的响应
-        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500

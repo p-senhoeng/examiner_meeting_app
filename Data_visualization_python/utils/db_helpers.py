@@ -545,3 +545,22 @@ def get_table_data(table_name, db_engine, exclude_columns=None):
         except SQLAlchemyError as e:
             print(f"Error occurred while fetching data from table {table_name}: {e}")
             raise
+
+
+def get_columns_data(table_name, column_names, db_engine):
+    """
+    查询指定表的指定列数据
+
+    :param table_name: 数据库表名
+    :param column_names: 要查询的列名列表（短列名）
+    :param db_engine: SQLAlchemy数据库引擎
+    :return: 包含查询结果的字典列表
+    """
+    query = text(f"SELECT {', '.join(column_names)} FROM {table_name}")
+
+    with db_engine.connect() as connection:
+        result = connection.execute(query)
+        data = result.fetchall()
+
+    return [dict(zip(column_names, row)) for row in data]
+
