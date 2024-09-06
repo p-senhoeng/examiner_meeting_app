@@ -141,8 +141,8 @@ def update_student():
 
     # 从请求数据中获取必要的字段
     filename = data.get('filename')
-    id_number = data.get('id_number')
-    grade_level = data.get('grade_level')
+    id_number = data.get('ID number')
+    grade_level = data.get('grade level')
     comments = data.get('comments')
 
     if not all([filename, id_number, grade_level is not None, comments is not None]):
@@ -175,20 +175,20 @@ def update_student():
 
     return jsonify({
         "message": "Student record updated successfully",
-        "id_number": id_number
+        "ID number": id_number
     }), 200
 
-@main_bp.route('/list_csv', methods=['GET'])
-def list_csv():
+@main_bp.route('/list_filenames', methods=['GET'])
+def list_filenames():
     """
     从映射表中返回所有的原始文件名
     """
     try:
         # 调用 db_helpers.py 中的函数来获取原始文件名列表
         original_filenames = get_all_original_filenames(db.engine)
-        return jsonify({"CSV files": original_filenames}), 200
+        return jsonify({"filenames": original_filenames}), 200
     except Exception as e:
-        return jsonify({"error": f"Failed to fetch CSV files: {str(e)}"}), 500
+        return jsonify({"error": f"Failed to fetch files: {str(e)}"}), 500
 
 @main_bp.route('/export_csv', methods=['POST'])
 def export_csv():
