@@ -286,7 +286,7 @@ def get_table_data_route():
         original_filename = get_original_filename(table_name,db.engine)
 
         return jsonify({
-            "table_name": original_filename,
+            "filename": original_filename,
             "columns": list(column_mapping.values()),
             "data": data
         }), 200
