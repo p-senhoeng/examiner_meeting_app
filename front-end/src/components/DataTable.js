@@ -1,7 +1,11 @@
 import React from 'react';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress } from '@mui/material';
 
 const DataTable = ({ data, columns }) => {
+  if (!data || !columns || data.length === 0 || columns.length === 0) {
+    return <CircularProgress />;
+  }
+
   return (
     <TableContainer component={Paper}>
       <Table>
