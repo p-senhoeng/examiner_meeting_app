@@ -1,68 +1,80 @@
 import React, { useState } from 'react';
 import { 
   Box, Typography, Button, Table, TableBody, TableCell, 
-  TableContainer, TableHead, TableRow, Paper, Tabs, Tab
+  TableContainer, TableHead, TableRow, Paper, Tabs, Tab,
+  useTheme, useMediaQuery, IconButton
 } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const DrillDownTooltip = ({ grade, details, studentInfo, position, onClose }) => {
+const DrillDownTooltip = ({ grade, details, studentInfo, onClose, onStudentSelect }) => {
   const [tabValue, setTabValue] = useState(0);
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('md'));
 
   if (!details || (Object.keys(details).length === 0 && (!studentInfo || studentInfo.length === 0))) {
-    return (
-      <Paper sx={{
-        position: 'absolute',
-        left: position.x,
-        top: position.y,
-        p: 2,
-        zIndex: 'tooltip',
-        maxWidth: '400px',
-        boxShadow: 3,
-      }}>
-        <Typography variant="h6">{`Grade ${grade}`}</Typography>
-        <Typography>No detailed data available for this grade.</Typography>
-        <Button onClick={onClose}>Close</Button>
-      </Paper>
-    );
+    return null;
   }
 
-  const detailData = Object.entries(details).map(([score, count]) => ({ score: Number(score), count }));
+  const detailData = Object.entries(details).map(([score, count]) => ({ 
+    score: Number(score), 
+    count: Math.round(count)
+  }));
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
   };
 
+  const handleStudentClick = (student) => {
+    onStudentSelect(student);
+    onClose();
+  };
+
   return (
-    <Paper sx={{
-      position: 'absolute',
-      left: position.x,
-      top: position.y,
-      p: 2,
-      zIndex: 'tooltip',
-      maxWidth: '500px',
-      maxHeight: '80vh',
-      overflowY: 'auto',
-      boxShadow: 3,
-    }}>
-      <Typography variant="h6" gutterBottom>{`Grade ${grade} Details`}</Typography>
+    <Paper 
+      sx={{
+        position: 'fixed',
+        left: fullScreen ? 0 : '10%',
+        top: fullScreen ? 0 : '10%',
+        right: fullScreen ? 0 : '10%',
+        bottom: fullScreen ? 0 : '10%',
+        p: 3,
+        zIndex: 'tooltip',
+        display: 'flex',
+        flexDirection: 'column',
+        bgcolor: 'background.paper',
+        borderRadius: fullScreen ? 0 : 2,
+        boxShadow: 24,
+      }}
+    >
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h4" component="h2" color="primary">
+          Grade {grade} Details
+        </Typography>
+        <IconButton onClick={onClose} aria-label="close">
+          <CloseIcon />
+        </IconButton>
+      </Box>
+
       <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 2 }}>
         <Tab label="Grade Distribution" />
         <Tab label="Student List" />
       </Tabs>
-      <Box sx={{ height: '300px' }}>
+
+      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {tabValue === 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={detailData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="score" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="count" fill="#8884d8" />
+              <XAxis dataKey="score" label={{ value: 'Score', position: 'insideBottom', offset: -5 }} />
+              <YAxis allowDecimals={false} label={{ value: 'Number of Students', angle: -90, position: 'insideLeft' }} />
+              <Tooltip formatter={(value) => Math.round(value)} />
+              <Bar dataKey="count" fill={theme.palette.primary.main} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
-            <Table size="small" stickyHeader>
+          <TableContainer component={Paper} sx={{ flexGrow: 1, overflow: 'auto' }}>
+            <Table stickyHeader>
               <TableHead>
                 <TableRow>
                   <TableCell>Student Name</TableCell>
@@ -72,7 +84,12 @@ const DrillDownTooltip = ({ grade, details, studentInfo, position, onClose }) =>
               </TableHead>
               <TableBody>
                 {studentInfo.map((student, index) => (
-                  <TableRow key={index}>
+                  <TableRow 
+                    key={index}
+                    hover
+                    onClick={() => handleStudentClick(student)}
+                    sx={{ cursor: 'pointer' }}
+                  >
                     <TableCell component="th" scope="row">
                       {student.name}
                     </TableCell>
@@ -85,7 +102,6 @@ const DrillDownTooltip = ({ grade, details, studentInfo, position, onClose }) =>
           </TableContainer>
         )}
       </Box>
-      <Button onClick={onClose} sx={{ mt: 2 }}>Close</Button>
     </Paper>
   );
 };
