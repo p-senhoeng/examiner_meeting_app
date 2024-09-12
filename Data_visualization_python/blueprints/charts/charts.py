@@ -2,6 +2,10 @@ from flask import Blueprint, request, jsonify
 from pandas.io.sql import table_exists
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9ce6666fe9a7a17ac1af3fe3ad82a21943a63089
 from models import db
 from sqlalchemy.sql import text
 
