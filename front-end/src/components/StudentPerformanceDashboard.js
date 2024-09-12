@@ -1,10 +1,9 @@
-// StudentPerformanceDashboard.js
-
 import React from 'react';
 import { Box, Typography, Snackbar, Alert } from '@mui/material';
 import { StudentPerformanceProvider } from './StudentPerformanceContext';
 import FileUploadSection from './FileUploadSection';
 import GradeDistributionChart from './GradeDistributionChart';
+import GradeDistributionLineChart from './GradeDistributionLineChart';
 import StudentPerformanceRadar from './StudentPerformanceRadar';
 
 const StudentPerformanceDashboard = () => {
@@ -23,6 +22,7 @@ const StudentPerformanceDashboard = () => {
         <Typography variant="h4" gutterBottom>Student Performance Dashboard</Typography>
         <FileUploadSection setSnackbar={setSnackbar} />
         <GradeDistributionChart />
+        <GradeDistributionLineChart />
         <StudentPerformanceRadar />
         <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleSnackbarClose}>
           <Alert onClose={handleSnackbarClose} severity={snackbar.severity} sx={{ width: '100%' }}>
