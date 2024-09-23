@@ -310,6 +310,7 @@ def get_table_data_route():
     except Exception as e:
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
 
+
 @main_bp.route('/delete_file', methods=['POST'])
 def delete_table():
     """删除指定的数据库表及其相关映射"""
