@@ -1,13 +1,14 @@
 import re
+import pandas as pd
 
 
 class FilesHandler:
-
     SPACE_REPLACEMENT = '§'
     HYPHEN_REPLACEMENT = '¤'
     UNDERSCORE_REPLACEMENT = '€'
     LEFT_BRACKET_REPLACEMENT = '_x_'
     RIGHT_BRACKET_REPLACEMENT = '_y_'
+
     @staticmethod
     def validate_filename(filename):
         """
@@ -95,6 +96,22 @@ class FilesHandler:
             restored_columns.append(col)
 
         return restored_columns
+
+    @staticmethod
+    def check_column_length(df):
+        """
+        检查DataFrame中是否有单元格的数据长度超过255个字符
+
+        :param df: pandas DataFrame
+        :return: 包含超长数据的列名列表
+        """
+        long_columns = []
+        for column in df.columns:
+            if df[column].dtype == object:  # 只检查字符串类型的列
+                if (df[column].astype(str).str.len() > 255).any():
+                    long_columns.append(column)
+        return long_columns
+
 
 def parse_error_message(error_message):
     """
