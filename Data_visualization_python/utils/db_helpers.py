@@ -564,3 +564,40 @@ def get_columns_data(table_name, column_names, db_engine):
 
     return [dict(zip(column_names, row)) for row in data]
 
+
+def delete_table_and_mappings(db_engine, table_name):
+    """
+    删除指定的数据库表及其相关映射
+
+    :param db_engine: SQLAlchemy 数据库引擎
+    :param table_name: 要删除的表名
+    :return: 元组 (成功: bool, 消息: str)
+    """
+    with db_engine.begin() as connection:
+        try:
+            # 检查表是否存在
+            inspector = inspect(db_engine)
+            if not inspector.has_table(table_name):
+                return False, f"Table does not exist"
+
+            # 删除表
+            connection.execute(text(f"DROP TABLE {table_name}"))
+
+            # 删除文件名映射
+            connection.execute(
+                text("DELETE FROM file_name_mapping WHERE table_name = :table_name"),
+                {"table_name": table_name}
+            )
+
+            # 删除列映射
+            connection.execute(
+                text("DELETE FROM table_columns_mapping WHERE table_name = :table_name"),
+                {"table_name": table_name}
+            )
+
+            return True, f"Table has been successfully deleted"
+
+        except SQLAlchemyError as e:
+            connection.rollback()
+            error_message = str(e)
+            return False, f"An error occurred while deleting the table: {error_message}"

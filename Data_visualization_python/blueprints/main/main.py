@@ -9,7 +9,7 @@ from utils.db_helpers import create_table_from_files, fetch_table_data, ensure_c
     parse_error_message, assign_grade_levels, insert_mapping, get_original_filename, create_mapping_table, \
     get_all_original_filenames, \
     create_column_mapping_table, generate_short_column_names, insert_column_mapping, get_max_column_order, \
-    get_table_columns,get_table_data
+    get_table_columns, get_table_data, delete_table_and_mappings
 from sqlalchemy import inspect, MetaData, Table, Column, String, text
 from utils.files_utils import FilesHandler  # 导入 Handler 工具类
 from utils.common_utils import order_data_by_columns  # 导入 CSVHandler 工具类
@@ -294,3 +294,23 @@ def get_table_data_route():
 
     except Exception as e:
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+
+@main_bp.route('/delete_table', methods=['POST'])
+def delete_table():
+    """删除指定的数据库表及其相关映射"""
+    data = request.json
+    filename = data.get('filename')
+
+    if not filename:
+        return jsonify({"error": "Filename is required"}), 400
+
+    # 清理表名
+    table_name = FilesHandler.clean_table_name(filename.lower())
+
+    # 调用辅助函数删除表和映射
+    success, message = delete_table_and_mappings(db.engine, table_name)
+
+    if success:
+        return jsonify({"message": message}), 200
+    else:
+        return jsonify({"error": message}), 404 if "does not exist" in message else 500
