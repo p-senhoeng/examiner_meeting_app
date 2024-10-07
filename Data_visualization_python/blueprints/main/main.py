@@ -244,9 +244,6 @@ def export_csv():
         # 将数据转换为 DataFrame
         df = pd.DataFrame(data)
 
-        # 恢复列名中的空格
-
-
         # 强制将导出的文件扩展名设置为 '.csv'，并使用还原后的表名作为文件名
         output_filename = os.path.join(current_app.config['UPLOAD_FOLDER'], original_filename + '.csv')
 
