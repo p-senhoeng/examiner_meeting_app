@@ -1,0 +1,18 @@
+.title {
+    display: flex;
+    align-items: center;
+   
+}
+
+.title img {
+    width: 20%; /* Adjust the width as needed */
+    height: 10%; /* Adjust the height as needed */
+    margin-right: 10px; /* Adjust the margin as needed */
+}
+
+.title h1 {
+    display: inline;
+    font-family: sans-serif;
+    text-align: center;
+    
+}

@@ -1,27 +1,17 @@
 
-.title {
-    display: flex;
-    align-items: center;
-   
-}
 
-.title img {
-    width: 20%; /* Adjust the width as needed */
-    height: 10%; /* Adjust the height as needed */
-    margin-right: 10px; /* Adjust the margin as needed */
-}
 
-.title h1 {
-    display: inline;
-    font-family: sans-serif;
-    text-align: center;
-}
-
-.hero{
-    background-color: rgb(209, 15, 15);
+.hero {
+    background-color: #BE0028;
     height: 400px;
     margin-top: 100px;
+
+    display: flex; /* Enable Flexbox on the hero */
+    justify-content: center; /* Center horizontally */
+    align-items: center; /* Center vertically */
+    border-radius: 18px;
 }
+
 
 
 .flex-item {
@@ -45,6 +35,7 @@
     display: flex;
     justify-content: space-between;
     width: 100%;
+    
 }
 
 .flex-item img {
