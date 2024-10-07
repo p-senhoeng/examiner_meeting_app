@@ -6,13 +6,11 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useStudentPerformance } from './StudentPerformanceContext';
 
-const DrillDownTooltip = ({ grade, details, studentInfo, onClose, selectedFile }) => {
+const DrillDownTooltip = ({ grade, details, studentInfo, onClose, addStudentToRadar, selectedStudentsForRadar, selectedFile }) => {
   const [tabValue, setTabValue] = useState(0);
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('md'));
-  const { addStudentToRadar, selectedStudentsForRadar } = useStudentPerformance();
 
   useEffect(() => {
     console.log('DrillDownTooltip received:', { grade, details, studentInfo, selectedFile });
@@ -32,7 +30,10 @@ const DrillDownTooltip = ({ grade, details, studentInfo, onClose, selectedFile }
   };
 
   const handleStudentClick = (student) => {
-    addStudentToRadar(student);
+    const fullStudentData = studentInfo.find(s => s.id === student.id);
+    if (fullStudentData) {
+      addStudentToRadar(fullStudentData);
+    }
   };
 
   return (

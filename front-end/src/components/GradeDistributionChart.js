@@ -38,6 +38,8 @@ const GradeDistributionChart = ({
     studentData, 
     handleFileSelect, 
     isLoading,
+    addStudentToRadar,
+    selectedStudentsForRadar
   } = useStudentPerformance();
 
   const [paperCode, setPaperCode] = useState(initialPaperCode || '');
@@ -58,17 +60,14 @@ const GradeDistributionChart = ({
   const sortGrades = (a, b) => {
     const indexA = gradeOrder.indexOf(a.grade);
     const indexB = gradeOrder.indexOf(b.grade);
-    // If both grades are found in the custom order, compare their indices
     if (indexA !== -1 && indexB !== -1) {
       return indexA - indexB;
     }
-    // If one of the grades is not found in the custom order, push it to the left
     if (indexA === -1) return -1;
     if (indexB === -1) return 1;
     return 0;
   };
 
-  // Set paper codes and semester codes from visualizationData or backend files
   useEffect(() => {
     if (visualizationData) {
       const { selectedFile } = visualizationData;
@@ -80,7 +79,6 @@ const GradeDistributionChart = ({
     }
   }, [visualizationData]);
 
-  // Update the available paper codes and semester codes when files change or visualizationData is updated
   useEffect(() => {
     const paperCodesSet = new Set();
     const semestersMap = {};
@@ -97,11 +95,9 @@ const GradeDistributionChart = ({
       });
     }
 
-    // Update available paper codes
     const sortedPaperCodes = Array.from(paperCodesSet).sort();
     setAvailablePaperCodes(sortedPaperCodes);
 
-    // Update semester codes for each paper
     const sortedSemestersMap = {};
     Object.keys(semestersMap).forEach((key) => {
       sortedSemestersMap[key] = semestersMap[key].sort();
@@ -110,7 +106,6 @@ const GradeDistributionChart = ({
     setSemesterCodesMap(sortedSemestersMap);
   }, [files, visualizationData]);
 
-  // Update selected files based on the selected paper code and semester code
   useEffect(() => {
     if (paperCode && semesterCode) {
       const newSelectedFiles = [`${paperCode}-${semesterCode}`, ...compareSemesterCodes.map(code => `${paperCode}-${code}`)];
@@ -132,7 +127,8 @@ const GradeDistributionChart = ({
         acc.studentInfo.push({
           name: `${student['First name']} ${student['Last name']}`,
           id: student['ID number'],
-          grade: student['Paper total (Real)']
+          grade: student['Paper total (Real)'],
+          ...student
         });
       }
       return acc;
@@ -183,7 +179,6 @@ const GradeDistributionChart = ({
       });
     });
 
-    // Convert distribution object to array and sort it based on the custom order
     return Object.values(distribution).sort(sortGrades);
   }, [selectedFiles, studentData]);
 
@@ -300,8 +295,8 @@ const GradeDistributionChart = ({
 
       <Box ref={chartRef}>
         {gradeDistribution.length > 0 ? (
-          <ResponsiveContainer width="100%" height={500}>
-            <BarChart data={gradeDistribution}  margin={{ top: 25, right: 30, left: 20, bottom: 30 }}>
+          <ResponsiveContainer width="100%" height={400}>
+            <BarChart data={gradeDistribution}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="grade" />
               <YAxis />
@@ -316,7 +311,7 @@ const GradeDistributionChart = ({
                   onMouseLeave={() => setHoveredBarKey(null)}
                   onClick={(data) => handleBarClick(data, filename)}
                 >
-                  <LabelList dataKey={filename} position="top" offset={10} />
+                  <LabelList dataKey={filename} position="top" />
                 </Bar>
               ))}
             </BarChart>
@@ -333,8 +328,8 @@ const GradeDistributionChart = ({
           studentInfo={drillDownData.studentInfo}
           selectedFile={drillDownData.filename}
           onClose={handleDrillDownClose}
-          addStudentToRadar={() => {}}
-          selectedStudentsForRadar={[]}
+          addStudentToRadar={addStudentToRadar}
+          selectedStudentsForRadar={selectedStudentsForRadar}
         />
       )}
     </Paper>

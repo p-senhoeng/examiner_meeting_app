@@ -27,6 +27,7 @@ function CSVUpload() {
     const handleFileUpload = async () => {
         let hasEmptyFields = false;
 
+        // Validation and error checking for each file
         const updatedFiles = selectedFiles.map((file) => {
             let error = '';
 
@@ -48,26 +49,27 @@ function CSVUpload() {
                 hasEmptyFields = true;
             }
 
-            return { ...file, error };
+            // Generate the renamed filename here for consistent reference
+            const renamedFilename = `${file.paperCode}-${file.semesterCode}${getFileExtension(file.file.name)}`;
+
+            return { ...file, error, renamedFilename };
         });
 
         setSelectedFiles(updatedFiles);
 
-        // Check if there are any errors and stop upload if found
+        // If any validation errors exist, do not proceed with the upload
         if (hasEmptyFields) {
             setUploadStatus('Please fill in all required fields correctly.');
             return;
         }
 
+        // Begin file upload process if validation passes
         setUploadStatus('Uploading...');
 
         const formData = new FormData();
-        const newFileNames = {};
 
-        selectedFiles.forEach(({ file, paperCode, semesterCode }) => {
-            const newFilename = `${paperCode}-${semesterCode}${getFileExtension(file.name)}`;
-            formData.append('student_performance_data', file, newFilename);
-            newFileNames[file.name] = newFilename;
+        updatedFiles.forEach(({ file, renamedFilename }) => {
+            formData.append('student_performance_data', file, renamedFilename);
         });
 
         try {
@@ -82,7 +84,7 @@ function CSVUpload() {
                 console.log('Server response:', data);
                 
                 const updatedFilesWithResult = updatedFiles.map((fileObj) => {
-                    const responseItem = data.find(item => item.filename === newFileNames[fileObj.file.name]);
+                    const responseItem = data.find(item => item.filename === fileObj.renamedFilename);
                     
                     return {
                         ...fileObj,
@@ -100,13 +102,10 @@ function CSVUpload() {
                 const errorMessage = data[0]?.details || 'An unknown error occurred';
                 setUploadStatus(`Upload Failed: ${errorMessage}`);
                 
-                const updatedFilesWithError = updatedFiles.map((fileObj) => ({
-                    ...fileObj,
-                    result: { 
-                        status: 'failed', 
-                        details: errorMessage
-                    }
-                }));
+                const updatedFilesWithError = updatedFiles.map((fileObj) => (fileObj.error === ''
+                    ? { ...fileObj, result: { status: 'failed', details: errorMessage } }
+                    : fileObj
+                ));
                 
                 setSelectedFiles(updatedFilesWithError);
             }
@@ -122,7 +121,8 @@ function CSVUpload() {
                 paperCode: '',
                 semesterCode: '',
                 result: null,
-                error: ''
+                error: '',
+                renamedFilename: '' // Add this property to hold the renamed file name
             }));
             setSelectedFiles(newFiles);
             setUploadStatus('');
@@ -205,6 +205,13 @@ function CSVUpload() {
                                                 disabled={isUploadCompleted}
                                             />
                                         </div>
+
+                                        {/* Display error message for validation */}
+                                        {fileObj.error && (
+                                            <div className="upload-result failure">
+                                                {fileObj.error}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {!(fileObj.result && fileObj.result.status !== null) && !isUploadCompleted && (
@@ -241,11 +248,13 @@ function CSVUpload() {
                             {selectedFiles.map((fileObj, index) => (
                                 <li key={index}>
                                     {fileObj.result?.status === 'success' && (
-                                        <span className="success">{fileObj.file.name} - Upload Successful</span>
+                                        <span className="success">
+                                            {fileObj.file.name} renamed as {fileObj.renamedFilename} - Upload Successful
+                                        </span>
                                     )}
                                     {fileObj.result?.status === 'failed' && (
                                         <span className="failure">
-                                            {fileObj.file.name} - Upload Failed: {fileObj.result.details}
+                                            {fileObj.file.name} renamed as {fileObj.renamedFilename} - Upload Failed: {fileObj.result.details}
                                         </span>
                                     )}
                                 </li>
