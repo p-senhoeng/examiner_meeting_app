@@ -24,10 +24,8 @@ from blueprints.charts.charts import charts_bp
 app.register_blueprint(main_bp, url_prefix='/main')
 app.register_blueprint(charts_bp, url_prefix='/charts')
 
-app.config['DEBUG'] = True
-app.config['SQLALCHEMY_ECHO'] = True  # 启用 SQLAlchemy 的 SQL 查询日志
+# app.config['DEBUG'] = True
+# app.config['SQLALCHEMY_ECHO'] = True  # 启用 SQLAlchemy 的 SQL 查询日志
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()  # 在启动应用时创建所有数据库表
-    app.run(debug=True)
+    app.run(debug=True, port=5001)
