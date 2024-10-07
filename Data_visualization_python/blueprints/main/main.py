@@ -9,7 +9,7 @@ from utils.db_helpers import create_table_from_files, fetch_table_data, ensure_c
     parse_error_message, assign_grade_levels, insert_mapping, get_original_filename, create_mapping_table, \
     get_all_original_filenames, \
     create_column_mapping_table, generate_short_column_names, insert_column_mapping, get_max_column_order, \
-    get_table_columns,get_table_data
+    get_table_columns, get_table_data, delete_table_and_mappings
 from sqlalchemy import inspect, MetaData, Table, Column, String, text
 from utils.files_utils import FilesHandler  # 导入 Handler 工具类
 from utils.common_utils import order_data_by_columns  # 导入 CSVHandler 工具类
@@ -44,9 +44,12 @@ def upload_file():
 
     responses = []
 
-    # 在循环外确保映射表存在，避免每个文件重复检查和创建
-    create_column_mapping_table(db.engine)
-    create_mapping_table(db.engine)
+    # 在循环外确保映射表存在
+    try:
+        create_column_mapping_table(db.engine)
+        create_mapping_table(db.engine)
+    except SQLAlchemyError as e:
+        return jsonify({"error": f"Failed to create mapping tables: {str(e)}"}), 500
 
     for file in files:
         if file.filename == '':
@@ -70,12 +73,20 @@ def upload_file():
             if not valid_filename:
                 responses.append({"table_name": table_name, "status": "failed", "error": error_message})
                 continue
+
             try:
                 # 读取上传的文件内容，并转换为 Pandas DataFrame
                 if file.filename.endswith('.csv'):
                     df = pd.read_csv(file)
                 elif file.filename.endswith(('.xlsx', '.xls')):
                     df = pd.read_excel(file)
+
+                # 检查数据长度
+                long_columns = FilesHandler.check_column_length(df)
+                if long_columns:
+                    error_message = f"The following columns contain data exceeding 255 characters: {', '.join(long_columns)}"
+                    responses.append({"filename": file.filename, "status": "failed", "error": error_message})
+                    continue  # 跳过此文件，继续处理下一个文件
 
                 # 确保列名是字符串
                 df.columns = [str(col) for col in df.columns]
@@ -84,6 +95,10 @@ def upload_file():
 
                 short_columns = generate_short_column_names(columns)
                 df.columns = short_columns
+
+                # 先创建映射
+                insert_mapping(original_filename, table_name, db.engine)
+                insert_column_mapping(table_name, columns, short_columns, db.engine)
 
                 # 使用 SQLAlchemy 的 inspect 工具检查表是否存在
                 inspector = inspect(db.engine)
@@ -99,18 +114,13 @@ def upload_file():
                 # 将数据插入到新创建的数据库表中
                 df.to_sql(table_name, db.engine, if_exists='append', index=False)
 
-                # 将原始文件名与表名的映射关系插入到映射表中
-                insert_mapping(original_filename, table_name, db.engine)
-
-                # 调用列名映射函数，存储列名的映射关系
-                insert_column_mapping(table_name, columns, short_columns, db.engine)
-
                 # 获取当前表的最大column_order
                 max_column_orders = get_max_column_order(db.engine)
                 current_max_order = max_column_orders.get(table_name, 0)
 
                 # 确保表中存在 'grade level' 和 'comments' 列，并传入当前的最大column_order
-                ensure_columns_exist(table_name, {'grade level': 'VARCHAR(255)', 'comments': 'VARCHAR(255)'}, db.engine, current_max_order)
+                ensure_columns_exist(table_name, {'grade level': 'VARCHAR(255)', 'comments': 'VARCHAR(255)'}, db.engine,
+                                     current_max_order)
                 # 分配成绩等级
                 assign_grade_levels(table_name, db.engine)
                 # 文件成功上传
@@ -128,8 +138,13 @@ def upload_file():
         else:
             responses.append({"filename": file.filename, "status": "failed", "error": "File type not allowed"})
 
-    # 返回所有文件的处理结果，只包含文件名和状态
-    return jsonify(responses), 200
+    # 根据上传结果返回适当的状态码
+    if all(response['status'] == 'failed' for response in responses):
+        return jsonify(responses), 400  # 所有文件上传失败
+    elif any(response['status'] == 'failed' for response in responses):
+        return jsonify(responses), 207  # 部分文件上传成功，部分失败
+    else:
+        return jsonify(responses), 200  # 所有文件上传成功
 
 
 @main_bp.route('/update_student', methods=['POST'])
@@ -294,3 +309,24 @@ def get_table_data_route():
 
     except Exception as e:
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+
+
+@main_bp.route('/delete_file', methods=['POST'])
+def delete_table():
+    """删除指定的数据库表及其相关映射"""
+    data = request.json
+    filename = data.get('filename')
+
+    if not filename:
+        return jsonify({"error": "Filename is required"}), 400
+
+    # 清理表名
+    table_name = FilesHandler.clean_table_name(filename.lower())
+
+    # 调用辅助函数删除表和映射
+    success, message = delete_table_and_mappings(db.engine, table_name)
+
+    if success:
+        return jsonify({"message": message}), 200
+    else:
+        return jsonify({"error": message}), 404 if "does not exist" in message else 500
