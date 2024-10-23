@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  frontend:
+    image: cydongcy/examiner_frontend:latest
+    build:
+      context: ./front-end
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    image: cydongcy/examiner_backend:latest
+    build:
+      context: ./Data_visualization_python
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_ENV=production
+      - SQLALCHEMY_DATABASE_URI=mysql+pymysql://root:123456@db:3306/data_processing
+    volumes:
+      - ./static/uploads:/app/static/uploads
+      - ./logs:/app/logs
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: data_processing
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: unless-stopped
+
+volumes:
+  db_data:

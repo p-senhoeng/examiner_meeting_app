@@ -1,0 +1,247 @@
+/* General Styling for Headers */
+h2 {
+    margin: 0 auto;
+    text-align: center;
+    margin-bottom: 50px;
+}
+
+/* Drag and Drop Box Styling */
+.drag-and-drop-box {
+    border: 2px dashed #aaa;
+    border-radius: 10px;
+    padding: 40px;
+    text-align: center;
+    background-color: #f8f8f8;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    margin-top: 50px;
+    width: 30%;
+    margin: 0 auto;
+}
+
+.drag-and-drop-box.dragging {
+    background-color: #e0f7fa;
+    border-color: #00acc1;
+}
+
+.upload-message {
+    font-size: 16px;
+    color: #555;
+    margin-bottom: 20px;
+    transition: color 0.3s ease;
+}
+
+/* File List Styling */
+.file-list {
+    margin-top: 20px;
+    list-style-type: none;
+    padding: 0;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.file-item-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Highlight Success and Failure Uploads */
+.file-item-container.success {
+    background-color: #e0ffe0; /* Light green for successful uploads */
+    border: 1px solid #4caf50; /* Green border */
+}
+
+.file-item-container.failure {
+    background-color: #ffe0e0; /* Light red for failed uploads */
+    border: 1px solid #f44336; /* Red border */
+}
+
+/* Styling for File Item Details */
+.file-item {
+    flex-grow: 1;
+    padding-right: 10px;
+    word-break: break-all;
+}
+
+/* Input Fields Wrapper */
+.input-fields-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Input Fields for Renaming Files */
+.input-fields {
+    display: flex;
+    gap: 10px;
+}
+
+.input-fields input {
+    width: 150px; /* Set width for input fields */
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.3s ease;
+    text-transform: capitalize;
+}
+
+/* Change input border color on focus */
+.input-fields input:focus {
+    border-color: #00acc1;
+}
+
+/* Delete Button Styling */
+.delete-button {
+    background-color: transparent;
+    border: none;
+    color: #ff1744;
+    font-size: 20px;
+    margin-left: 10px;
+    cursor: pointer;
+    outline: none;
+}
+
+.delete-button:hover {
+    color: #d50000;
+}
+
+/* Upload Result Error Styling */
+.upload-result.failure {
+    color: #d8000c;
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+/* Button Container Styling */
+.button-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+/* Browse and Upload Button Styling */
+.browse-button, .upload-button {
+    background-color: #c10000;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    margin: 0 10px;
+    transition: background-color 0.3s ease;
+}
+
+.upload-button {
+    background-color: #20c100;
+}
+
+.browse-button:hover, .upload-button:hover {
+    background-color: #007c91;
+}
+
+/* Improved Styling for the "Would you like to" section */
+.upload-summary {
+  text-align: center;
+  margin-top: 20px;
+  padding: 10px;
+  border-top: 1px solid #ccc;
+}
+
+.upload-summary h3 {
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+}
+
+.upload-summary p {
+  font-size: 1rem;
+  margin-bottom: 10px;
+}
+
+.upload-summary ul {
+  list-style-type: none;
+  padding: 0;
+  margin-bottom: 20px;
+}
+
+.upload-summary ul li {
+  margin: 5px 0;
+  font-size: 0.95rem;
+}
+
+.success {
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.failure {
+  color: #f44336;
+  font-weight: bold;
+}
+
+/* Styling for Success and Failure Messages in Upload Summary */
+.upload-detail {
+  margin-bottom: 5px;
+  font-size: 14px;
+}
+
+.upload-detail .success {
+  color: green;
+}
+
+.upload-detail .failure {
+  color: red;
+}
+
+/* CSS Styling for the next-steps buttons */
+.next-steps {
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-around;
+}
+
+.review-button, .visualize-button {
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: bold;
+  color: white;
+  background-color: #BE0028;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.3s ease;
+  margin-left: 20px;
+}
+
+.review-button:hover, .visualize-button:hover {
+  background-color: #8A001D;
+  transform: translateY(-2px);
+}
+
+.review-button:focus, .visualize-button:focus {
+  outline: none;
+  box-shadow: 0 0 4px #BE0028;
+}
+
+.review-button:disabled, .visualize-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .review-button, .visualize-button {
+    width: 100%;
+    margin: 5px 0;
+  }
+}

@@ -1,71 +1,72 @@
 import React, { useState } from 'react';
-import { Container, CssBaseline, ThemeProvider, createTheme, Button } from '@mui/material';
-import ScoreUpload from './components/ScoreUpload';
-import DataVisualization from './components/DataVisualization';
-import DataTable from './components/DataTable';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { CssBaseline, Container, Box } from '@mui/material';
+import Home from './components/Home';
+import CSVUpload from './components/CSVUpload';
+import ReviewData from './components/DataProcessingComponent';
+import App2 from './App2';
+import { StudentPerformanceProvider } from './components/StudentPerformanceContext';
 
 const theme = createTheme();
 
-function App() {
-  const [scores, setScores] = useState([]);
-  const [showVisualization, setShowVisualization] = useState(false);
+function AppContent() {
+  const [visualizationData, setVisualizationData] = useState(null);
+  const navigate = useNavigate();
 
-  const handleScoreUpload = (uploadedScores) => {
-    setScores(uploadedScores);
+  const handleDataReceived = (data) => {
+    console.log('Data received:', data);
+    setVisualizationData(data);
   };
 
-  const handleVisualize = () => {
-    setShowVisualization(true);
-  };
-
-  const handleBackToUpload = () => {
-    setShowVisualization(false);
-  };
-
-  const handleScoreUpdate = (updatedScores) => {
-    setScores(updatedScores);
+  const handleViewVisualization = (filename, paperCode, semesterCode) => {
+    console.log('Viewing visualization for:', filename);
+    console.log('Paper Code:', paperCode, 'Semester Code:', semesterCode);
+    navigate('/visualization', {
+      state: {
+        visualizationData,
+        selectedFile: filename,
+        paperCode,
+        semesterCode,
+      },
+    });
   };
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Container maxWidth="lg">
-        {!showVisualization ? (
-          <>
-            <h1>Student Achievement Management Center</h1>
-            <ScoreUpload onUpload={handleScoreUpload} />
-            {scores.length > 0 && (
-              <>
-                <DataTable 
-                  scores={scores} 
-                  onUpdate={handleScoreUpdate}
-                />
-                <Button 
-                  variant="contained" 
-                  color="primary" 
-                  onClick={handleVisualize} 
-                  style={{ marginTop: '20px' }}
-                >
-                  Data Visualization
-                </Button>
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <DataVisualization scores={scores} />
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={handleBackToUpload} 
-              style={{ marginTop: '20px' }}
-            >
-              Return
-            </Button>
-          </>
-        )}
-      </Container>
+      <StudentPerformanceProvider>
+        <Container maxWidth="lg">
+          <Box my={4}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/upload-csv" element={<CSVUpload />} />
+              <Route
+                path="/review-data"
+                element={
+                  <ReviewData
+                    onDataReceived={handleDataReceived}
+                    onViewVisualization={handleViewVisualization}
+                  />
+                }
+              />
+              <Route
+                path="/visualization"
+                element={<App2 />}
+              />
+            </Routes>
+          </Box>
+        </Container>
+      </StudentPerformanceProvider>
     </ThemeProvider>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
+    </Router>
   );
 }
 
